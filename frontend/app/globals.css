@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: #F2F4F8;
+  overscroll-behavior: none;
+}
+
+@keyframes popIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  70%  { transform: scale(1.12); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(230,81,0,0.3); }
+  50%       { box-shadow: 0 0 18px 6px rgba(230,81,0,0.6); }
+}
+
+@keyframes freeze {
+  from { filter: brightness(1) saturate(1); }
+  to   { filter: brightness(0.7) saturate(0.4) hue-rotate(180deg); }
+}
+
+.animate-pop-in    { animation: popIn 0.55s cubic-bezier(.36,.07,.19,.97) both; }
+.animate-shake     { animation: shake 0.4s both; }
+.animate-slide-up  { animation: slideUp 0.3s ease both; }
+.animate-glow-legendary { animation: glow 2s ease-in-out infinite; }
+
+.pb-safe { padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)); }
