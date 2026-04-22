@@ -1,5 +1,5 @@
 {
-  "/(app)/tasks/page": "app/(app)/tasks/page.js",
-  "/(app)/categories/page": "app/(app)/categories/page.js",
-  "/(app)/profile/page": "app/(app)/profile/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(app)/categories/page": "app/(app)/categories/page.js"
 }
