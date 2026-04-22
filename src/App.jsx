@@ -10,10 +10,11 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab]             = useState('game')
+  const [tab, setTab]               = useState('game')
   const [categories, setCategories] = useState(['food', 'shopping'])
-  const [energy, setEnergy]       = useState(8)
-  const [mtballs, setMtballs]     = useState(1250)
+  const [energy, setEnergy]         = useState(8)
+  const [mtballs, setMtballs]       = useState(1250)
+  const [cells, setCells]           = useState(() => Array(12).fill(null))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -28,6 +29,8 @@ export default function App() {
             setEnergy={setEnergy}
             mtballs={mtballs}
             setMtballs={setMtballs}
+            cells={cells}
+            setCells={setCells}
           />
         )}
         {tab === 'profile' && (

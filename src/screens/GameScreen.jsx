@@ -68,11 +68,8 @@ function Modal({ children, onClose }) {
   )
 }
 
-export default function GameScreen({ categories, energy, setEnergy, mtballs, setMtballs }) {
+export default function GameScreen({ categories, energy, setEnergy, mtballs, setMtballs, cells, setCells }) {
   const COLS = 4
-  const TOTAL = 12
-
-  const [cells, setCells]       = useState(() => Array(TOTAL).fill(null))
   const [popIdx, setPopIdx]     = useState(null)
   const [selected, setSelected] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
