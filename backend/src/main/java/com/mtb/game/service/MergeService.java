@@ -14,8 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -47,47 +47,45 @@ public class MergeService {
             throw ApiException.unprocessable("MERGE_MAX_RARITY", "Cannot merge LEGENDARY items");
         }
 
-        List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
-        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
-                ? bonusTemplateRepository.findByCategoryIdAndRarity(target.getCategory().getId(), nextRarity)
-                : bonusTemplateRepository.findAvailable(target.getCategory().getId(), nextRarity, activeBonusTypes);
-        BonusTemplate template = candidates.stream()
-                .findFirst()
-                .orElseGet(() -> bonusTemplateRepository
-                        .findByCategoryIdAndRarity(target.getCategory().getId(), nextRarity)
-                        .stream().findFirst()
-                        .orElseThrow(() -> ApiException.unprocessable("NO_TEMPLATE", "No template for merged item")));
-
-        BigDecimal bonusValue = template.getValueMin().add(
-                BigDecimal.valueOf(random.nextDouble())
-                        .multiply(template.getValueMax().subtract(template.getValueMin()))
-        ).setScale(2, RoundingMode.HALF_UP);
-
-        String description = template.getDescriptionTemplate()
-                .replace("{value}", bonusValue.toPlainString())
-                .replace("{unit}", template.getUnit().name())
-                .replace("{partner}", template.getPartnerName() != null ? template.getPartnerName() : "");
+        BonusTemplate template = pickTemplate(user, target.getCategory().getId(), nextRarity);
 
         gameItemRepository.delete(source);
 
         target.setRarity(nextRarity);
         target.setName(template.getItemName());
-        target.setIcon(template.getIcon());
+        target.setIconPath(template.getIconPath());
         target.setBoardPosition(targetPosition);
         target.setStatus(ItemStatus.ACTIVE);
         target.setBonusType(template.getBonusType());
-        target.setBonusDescription(description);
-        target.setBonusValue(bonusValue);
+        target.setDescription(template.getDescription());
+        target.setBonusValue(template.getValue());
         target.setBonusUnit(template.getUnit());
         target.setPartnerName(template.getPartnerName());
-        target.setTimerMinDays(template.getTimerMinDays());
-        target.setTimerMaxDays(template.getTimerMaxDays());
+        target.setTimerDays(template.getTimerDays());
         target.setExpiresAt(null);
         gameItemRepository.save(target);
 
         taskService.trackEvent(user, com.mtb.game.domain.enums.TaskEventType.MERGE);
 
         return gameService.toResponse(target);
+    }
+
+    private BonusTemplate pickTemplate(User user, Long categoryId, Rarity rarity) {
+        List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
+
+        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
+                ? new ArrayList<>(bonusTemplateRepository.findByCategoryIdAndRarity(categoryId, rarity))
+                : new ArrayList<>(bonusTemplateRepository.findAvailable(categoryId, rarity, activeBonusTypes));
+
+        if (candidates.isEmpty()) {
+            candidates = new ArrayList<>(bonusTemplateRepository.findByCategoryIdAndRarity(categoryId, rarity));
+        }
+        if (candidates.isEmpty()) {
+            throw ApiException.unprocessable("NO_TEMPLATE", "No template for merged item");
+        }
+
+        Collections.shuffle(candidates, random);
+        return candidates.get(0);
     }
 
     private GameItem getOwnedActive(User user, Long itemId) {

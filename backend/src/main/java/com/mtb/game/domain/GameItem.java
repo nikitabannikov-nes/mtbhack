@@ -31,7 +31,9 @@ public class GameItem {
     private Rarity rarity;
 
     private String name;
-    private String icon;
+
+    @Column(name = "icon_path", length = 200)
+    private String iconPath;
 
     @Column(nullable = false)
     private Integer boardPosition;
@@ -45,7 +47,7 @@ public class GameItem {
     private BonusType bonusType = BonusType.NONE;
 
     @Column(length = 500)
-    private String bonusDescription;
+    private String description;
 
     @Column(precision = 8, scale = 2)
     private BigDecimal bonusValue;
@@ -54,8 +56,9 @@ public class GameItem {
     private BonusUnit bonusUnit;
 
     private String partnerName;
-    private Integer timerMinDays;
-    private Integer timerMaxDays;
+
+    private Integer timerDays;
+
     private LocalDateTime expiresAt;
 
     private LocalDateTime createdAt;

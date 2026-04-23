@@ -14,7 +14,7 @@ public interface GameItemRepository extends JpaRepository<GameItem, Long> {
 
     Optional<GameItem> findByUserIdAndBoardPosition(Long userId, int boardPosition);
 
-    @Query("SELECT gi.bonusType FROM GameItem gi WHERE gi.user.id = :userId AND gi.status = 'FROZEN' AND (gi.expiresAt IS NULL OR gi.expiresAt > CURRENT_TIMESTAMP)")
+    @Query("SELECT DISTINCT gi.bonusType FROM GameItem gi WHERE gi.user.id = :userId AND gi.bonusType <> com.mtb.game.domain.enums.BonusType.NONE")
     List<BonusType> findActiveBonusTypes(Long userId);
 
     @Query("SELECT gi FROM GameItem gi WHERE gi.user.id = :userId AND gi.status = 'FROZEN' AND gi.expiresAt IS NOT NULL AND gi.expiresAt <= :now")

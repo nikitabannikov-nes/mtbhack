@@ -18,6 +18,8 @@ type BackendProfile = {
   monthlySpend: number
   referralCode: string
   categories: CategoryId[]
+  availableCategories: CategoryId[]
+  categoriesLockedUntil: string | null
 }
 
 type BackendAuthResponse = {
@@ -30,14 +32,15 @@ type BackendGameItem = {
   categorySlug: CategoryId
   rarity: GameItem['rarity']
   name: string
-  icon: string
+  iconPath: string
   boardPosition: number
   status: GameItem['status']
   bonusType?: GameItem['bonusType']
-  bonusDescription?: string
+  description?: string
   bonusValue?: number
   bonusUnit?: 'PERCENT' | 'BYN' | 'NONE'
   partnerName?: string
+  timerDays?: number
   expiresAt?: string
   createdAt: string
 }
@@ -106,6 +109,8 @@ const mapProfile = (profile: BackendProfile): UserProfile => ({
   monthlySpend: profile.monthlySpend,
   selectedCategories: profile.categories,
   referralCode: profile.referralCode,
+  availableCategories: profile.availableCategories ?? [],
+  categoriesLockedUntil: profile.categoriesLockedUntil ?? undefined,
 })
 
 const mapGameItem = (item: BackendGameItem): GameItem => ({
@@ -113,14 +118,15 @@ const mapGameItem = (item: BackendGameItem): GameItem => ({
   category: item.categorySlug,
   rarity: item.rarity,
   name: item.name,
-  icon: item.icon,
+  iconPath: item.iconPath,
   boardPosition: item.boardPosition,
   status: item.status,
   bonusType: item.bonusType,
-  bonusDescription: item.bonusDescription,
+  description: item.description,
   bonusValue: item.bonusValue,
   bonusUnit: item.bonusUnit === 'NONE' ? undefined : item.bonusUnit,
   partnerName: item.partnerName,
+  timerDays: item.timerDays,
   expiresAt: item.expiresAt,
   createdAt: item.createdAt,
 })

@@ -218,11 +218,11 @@ export default function GamePage() {
     if (!cells[i] || cells[i]?.status === 'FROZEN') { e.preventDefault(); return }
     dragFromRef.current = i
     setDragFrom(i)
-    const ghost = document.createElement('div')
-    ghost.style.cssText = 'position:fixed;top:-999px;font-size:40px'
-    ghost.textContent   = cells[i]!.icon
+    const ghost = document.createElement('img')
+    ghost.src = cells[i]!.iconPath
+    ghost.style.cssText = 'position:fixed;top:-999px;width:40px;height:40px;object-fit:contain'
     document.body.appendChild(ghost)
-    e.dataTransfer.setDragImage(ghost, 24, 24)
+    e.dataTransfer.setDragImage(ghost, 20, 20)
     setTimeout(() => document.body.removeChild(ghost), 0)
   }
 
@@ -390,9 +390,11 @@ export default function GamePage() {
             >
               {item ? (
                 <>
-                  <span className="text-2xl pointer-events-none leading-none mb-0.5">
-                    {item.icon}
-                  </span>
+                  <img
+                    src={item.iconPath}
+                    alt={item.name}
+                    className="w-8 h-8 object-contain pointer-events-none mb-0.5"
+                  />
                   <RarityBadge rarity={item.rarity} />
 
                   {frozen && (
@@ -491,10 +493,10 @@ function ItemModal({
     <Modal onClose={onClose}>
       {/* Icon */}
       <div
-        className="w-20 h-20 rounded-3xl flex items-center justify-center text-5xl mb-3 shadow-inner"
+        className="w-20 h-20 rounded-3xl flex items-center justify-center mb-3 shadow-inner"
         style={{ background: cfg.bg, boxShadow: `0 0 24px ${cfg.glow}` }}
       >
-        {item.icon}
+        <img src={item.iconPath} alt={item.name} className="w-12 h-12 object-contain" />
       </div>
 
       {/* Rarity badge */}
@@ -512,22 +514,22 @@ function ItemModal({
       </p>
 
       {/* Bonus card */}
-      {hasBonus && item.bonusDescription && (
+      {hasBonus && item.description && (
         <div
           className="w-full rounded-2xl p-4 mb-4 text-center"
           style={{ background: cfg.bg }}
         >
           <p className="font-bold text-sm" style={{ color: cfg.color }}>
-            {item.bonusDescription}
+            {item.description}
           </p>
           {item.partnerName && (
             <p className="text-xs mt-1" style={{ color: cfg.color + 'aa' }}>
               {item.partnerName}
             </p>
           )}
-          {item.timerMinDays !== undefined && item.timerMinDays > 0 && (
+          {item.timerDays !== undefined && item.timerDays > 0 && (
             <p className="text-[10px] mt-2 text-gray-400">
-              Действует {item.timerMinDays}–{item.timerMaxDays} дней после активации
+              Действует {item.timerDays} дней после активации
             </p>
           )}
         </div>

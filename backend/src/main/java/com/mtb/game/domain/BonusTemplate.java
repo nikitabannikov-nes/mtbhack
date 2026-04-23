@@ -28,22 +28,23 @@ public class BonusTemplate {
     @Column(nullable = false)
     private BonusType bonusType;
 
-    @Column(precision = 8, scale = 2)
-    private BigDecimal valueMin;
-
-    @Column(precision = 8, scale = 2)
-    private BigDecimal valueMax;
+    @Column(precision = 8, scale = 2, nullable = false)
+    private BigDecimal value;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private BonusUnit unit;
 
-    private Integer timerMinDays;
-    private Integer timerMaxDays;
+    @Column(nullable = false)
+    private Integer timerDays;
 
     @Column(length = 500)
-    private String descriptionTemplate;
+    private String description;
 
     private String partnerName;
-    private String icon;
+
+    @Column(name = "icon_path", length = 200)
+    private String iconPath;
+
     private String itemName;
 }

@@ -17,8 +17,16 @@ export default function CategoriesPage() {
 
   const [selected, setSelected] = useState<CategoryId[]>(user?.selectedCategories ?? [])
 
-  const slots = user?.level ?? 1
-  const maxEnergy = ENERGY_MAX_BY_LEVEL[user?.level ?? 1]
+  const slots      = user?.level ?? 1
+  const maxEnergy  = ENERGY_MAX_BY_LEVEL[user?.level ?? 1]
+  const pool       = (user?.availableCategories?.length ?? 0) > 0
+    ? user!.availableCategories
+    : ALL_CATEGORIES
+  const isLocked   = !!user?.categoriesLockedUntil
+
+  const lockedUntilLabel = user?.categoriesLockedUntil
+    ? new Date(user.categoriesLockedUntil).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    : null
 
   useQuery({
     queryKey: ['profile'],
@@ -37,10 +45,18 @@ export default function CategoriesPage() {
       addToast('✅ Категории сохранены', 'success')
       qc.invalidateQueries({ queryKey: ['board'] })
     },
-    onError: () => addToast('Не удалось сохранить', 'error'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      if (msg?.includes('once per month')) {
+        addToast('Категории уже изменены в этом месяце', 'error')
+      } else {
+        addToast('Не удалось сохранить', 'error')
+      }
+    },
   })
 
   function toggle(id: CategoryId) {
+    if (isLocked) return
     if (selected.includes(id)) {
       setSelected(selected.filter(s => s !== id))
     } else if (selected.length < slots) {
@@ -48,14 +64,14 @@ export default function CategoriesPage() {
     }
   }
 
-  const changed = JSON.stringify(selected.slice().sort()) !== JSON.stringify((user?.selectedCategories ?? []).slice().sort())
+  const changed = !isLocked && JSON.stringify(selected.slice().sort()) !== JSON.stringify((user?.selectedCategories ?? []).slice().sort())
 
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="pt-2">
         <h1 className="text-2xl font-black text-gray-900">Категории</h1>
         <p className="text-sm text-gray-400 mt-1">
-          Твой уровень {slots} — доступно {slots} {slots === 1 ? 'категория' : 'категории'}
+          Уровень {slots} — доступно {slots} {slots === 1 ? 'категория' : 'категории'} из 6 на этот месяц
         </p>
       </div>
 
@@ -70,12 +86,32 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Monthly lock banner */}
+      {isLocked && (
+        <div className="rounded-2xl p-4 bg-amber-50 border border-amber-200 flex items-start gap-3">
+          <span className="text-2xl">🔒</span>
+          <div>
+            <p className="font-black text-sm text-amber-800">Категории уже изменены в этом месяце</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Следующее изменение доступно с {lockedUntilLabel}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pool info */}
+      <div className="rounded-2xl p-3 bg-blue-50 border border-blue-100">
+        <p className="text-xs text-blue-600 font-semibold">
+          🎲 Твои 6 категорий на этот месяц — выбери {slots} {slots === 1 ? 'из них' : 'из них'}
+        </p>
+      </div>
+
+      {/* Grid — only pool categories */}
       <div className="grid grid-cols-2 gap-3">
-        {ALL_CATEGORIES.map(id => {
+        {pool.map(id => {
           const cat        = CATEGORY_CONFIG[id]
           const isSelected = selected.includes(id)
-          const locked     = !isSelected && selected.length >= slots
+          const locked     = isLocked || (!isSelected && selected.length >= slots)
 
           return (
             <button
@@ -142,7 +178,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Save button */}
-      {changed && (
+      {changed && !isLocked && (
         <button
           onClick={() => saveMutation.mutate(selected)}
           disabled={saveMutation.isPending || selected.length === 0}

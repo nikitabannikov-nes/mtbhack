@@ -36,4 +36,10 @@ public class Task {
 
     @Builder.Default
     private Boolean isActive = true;
+
+    @Builder.Default
+    private Boolean mandatory = false;
+
+    @Column(name = "next_task_id")
+    private Long nextTaskId;
 }

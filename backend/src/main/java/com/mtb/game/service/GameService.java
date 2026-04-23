@@ -40,7 +40,7 @@ public class GameService {
 
     @Transactional
     public BoardResponse getBoard(User user) {
-        cleanExpiredItems(user);
+        deleteExpiredItems(user);
         List<GameItem> items = gameItemRepository.findByUserId(user.getId());
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> ApiException.notFound("Profile not found"));
@@ -76,9 +76,7 @@ public class GameService {
                 .filter(pos -> !occupied.contains(pos))
                 .boxed()
                 .toList();
-        if (available.isEmpty()) {
-            return Optional.empty();
-        }
+        if (available.isEmpty()) return Optional.empty();
         return Optional.of(available.get(random.nextInt(available.size())));
     }
 
@@ -86,10 +84,7 @@ public class GameService {
     public Map<String, Object> getEnergy(User user) {
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> ApiException.notFound("Profile not found"));
-        return Map.of(
-                "energy", profile.getEnergy(),
-                "maxEnergy", profile.getMaxEnergy()
-        );
+        return Map.of("energy", profile.getEnergy(), "maxEnergy", profile.getMaxEnergy());
     }
 
     @Transactional
@@ -103,10 +98,7 @@ public class GameService {
             throw ApiException.badRequest("DEFAULT items cannot be activated");
         }
 
-        int minDays = item.getTimerMinDays() != null ? item.getTimerMinDays() : 1;
-        int maxDays = item.getTimerMaxDays() != null ? item.getTimerMaxDays() : 3;
-        int days = minDays + (maxDays > minDays ? random.nextInt(maxDays - minDays + 1) : 0);
-
+        int days = item.getTimerDays() != null ? item.getTimerDays() : 7;
         item.setStatus(ItemStatus.FROZEN);
         item.setExpiresAt(LocalDateTime.now().plusDays(days));
         gameItemRepository.save(item);
@@ -124,13 +116,10 @@ public class GameService {
         var occupantOpt = gameItemRepository.findByUserIdAndBoardPosition(user.getId(), targetPosition);
         if (occupantOpt.isPresent()) {
             GameItem occupant = occupantOpt.get();
-            if (occupant.getId().equals(source.getId())) {
-                return getBoard(user);
-            }
+            if (occupant.getId().equals(source.getId())) return getBoard(user);
             if (occupant.getStatus() == ItemStatus.FROZEN) {
                 throw ApiException.badRequest("Cannot swap with a frozen item");
             }
-
             int originalPosition = source.getBoardPosition();
             source.setBoardPosition(targetPosition);
             occupant.setBoardPosition(originalPosition);
@@ -153,18 +142,15 @@ public class GameService {
         }
 
         gameItemRepository.delete(item);
-        BigDecimal refund = BigDecimal.valueOf(
-                gameProperties.getGame().getItemDeleteEnergyRefund());
+        BigDecimal refund = BigDecimal.valueOf(gameProperties.getGame().getItemDeleteEnergyRefund());
         return energyService.addEnergy(user, refund, EnergyReason.DELETE_ITEM);
     }
 
-    private void cleanExpiredItems(User user) {
+    private void deleteExpiredItems(User user) {
         List<GameItem> expired = gameItemRepository.findExpiredFrozen(user.getId(), LocalDateTime.now());
-        expired.forEach(item -> {
-            item.setStatus(ItemStatus.ACTIVE);
-            item.setExpiresAt(null);
-        });
-        gameItemRepository.saveAll(expired);
+        if (!expired.isEmpty()) {
+            gameItemRepository.deleteAll(expired);
+        }
     }
 
     private GameItem getOwnedItem(User user, Long itemId) {
@@ -182,14 +168,15 @@ public class GameService {
                 item.getCategory().getSlug(),
                 item.getRarity(),
                 item.getName(),
-                item.getIcon(),
+                item.getIconPath(),
                 item.getBoardPosition(),
                 item.getStatus(),
                 item.getBonusType(),
-                item.getBonusDescription(),
+                item.getDescription(),
                 item.getBonusValue(),
                 item.getBonusUnit(),
                 item.getPartnerName(),
+                item.getTimerDays(),
                 item.getExpiresAt(),
                 item.getCreatedAt()
         );

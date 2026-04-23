@@ -21,16 +21,15 @@ export interface GameItem {
   category: CategoryId
   rarity: Rarity
   name: string
-  icon: string
+  iconPath: string
   boardPosition: number
   status: ItemStatus
   bonusType?: RewardType
-  bonusDescription?: string
+  description?: string
   bonusValue?: number
   bonusUnit?: 'PERCENT' | 'BYN'
   partnerName?: string
-  timerMinDays?: number
-  timerMaxDays?: number
+  timerDays?: number
   expiresAt?: string
   createdAt: string
 }
@@ -46,6 +45,8 @@ export interface UserProfile {
   monthlySpend: number
   selectedCategories: CategoryId[]
   referralCode: string
+  availableCategories: CategoryId[]
+  categoriesLockedUntil?: string
 }
 
 export interface Task {

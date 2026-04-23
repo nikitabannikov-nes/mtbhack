@@ -13,5 +13,7 @@ public record ProfileResponse(
         int playerLevel,
         BigDecimal monthlySpend,
         String referralCode,
-        List<String> categories
+        List<String> categories,
+        List<String> availableCategories,
+        String categoriesLockedUntil
 ) {}

@@ -13,14 +13,15 @@ public record GameItemResponse(
         String categorySlug,
         Rarity rarity,
         String name,
-        String icon,
+        String iconPath,
         int boardPosition,
         ItemStatus status,
         BonusType bonusType,
-        String bonusDescription,
+        String description,
         BigDecimal bonusValue,
         BonusUnit bonusUnit,
         String partnerName,
+        Integer timerDays,
         LocalDateTime expiresAt,
         LocalDateTime createdAt
 ) {}

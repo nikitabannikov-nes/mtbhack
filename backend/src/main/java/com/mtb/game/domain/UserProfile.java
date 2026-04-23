@@ -44,6 +44,15 @@ public class UserProfile {
 
     private LocalDateTime updatedAt;
 
+    @Column(name = "categories_changed_at")
+    private LocalDateTime categoriesChangedAt;
+
+    @Column(name = "category_pool_month")
+    private String categoryPoolMonth;
+
+    @Column(name = "category_pool")
+    private String categoryPool;
+
     @PrePersist @PreUpdate
     void onUpdate() { updatedAt = LocalDateTime.now(); }
 }

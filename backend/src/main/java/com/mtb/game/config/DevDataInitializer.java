@@ -48,6 +48,7 @@ public class DevDataInitializer implements CommandLineRunner {
                         .user(user)
                         .username(DEMO_USERNAME)
                         .energy(new BigDecimal("7.0"))
+                        .monthlySpend(new BigDecimal("500.00"))
                         .referralCode(UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                         .build()));
 
@@ -59,6 +60,9 @@ public class DevDataInitializer implements CommandLineRunner {
         }
         if (profile.getReferralCode() == null || profile.getReferralCode().isBlank()) {
             profile.setReferralCode(UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
+        if (profile.getMonthlySpend() == null || profile.getMonthlySpend().compareTo(new BigDecimal("500")) < 0) {
+            profile.setMonthlySpend(new BigDecimal("500.00"));
         }
         profileRepository.save(profile);
 

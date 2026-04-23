@@ -1,11 +1,11 @@
 package com.mtb.game.service;
 
+import com.mtb.game.domain.Category;
 import com.mtb.game.domain.User;
 import com.mtb.game.domain.UserCategory;
 import com.mtb.game.domain.UserProfile;
-import com.mtb.game.domain.Category;
-import com.mtb.game.dto.response.ProfileResponse;
 import com.mtb.game.dto.response.ProfileLevelResponse;
+import com.mtb.game.dto.response.ProfileResponse;
 import com.mtb.game.exception.ApiException;
 import com.mtb.game.repository.CategoryRepository;
 import com.mtb.game.repository.UserCategoryRepository;
@@ -15,9 +15,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +36,7 @@ public class ProfileService {
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> ApiException.notFound("Profile not found"));
         applyProgression(profile);
+        refreshCategoryPool(profile);
         profileRepository.save(profile);
         List<String> categories = categoryRepository.findSlugsByUserId(user.getId());
         return toResponse(user, profile, categories);
@@ -41,6 +47,14 @@ public class ProfileService {
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> ApiException.notFound("Profile not found"));
         applyProgression(profile);
+        refreshCategoryPool(profile);
+
+        boolean lockedThisMonth = profile.getCategoriesChangedAt() != null &&
+                YearMonth.from(profile.getCategoriesChangedAt()).equals(YearMonth.now());
+        if (lockedThisMonth) {
+            throw ApiException.unprocessable("CATEGORY_CHANGE_LOCKED",
+                    "Category selection can only be changed once per month");
+        }
 
         List<String> uniqueCategorySlugs = new ArrayList<>(new LinkedHashSet<>(categorySlugs));
         if (uniqueCategorySlugs.size() != categorySlugs.size()) {
@@ -49,6 +63,11 @@ public class ProfileService {
 
         if (uniqueCategorySlugs.size() > profile.getPlayerLevel()) {
             throw ApiException.unprocessable("CATEGORY_LIMIT_EXCEEDED", "Too many categories for current level");
+        }
+
+        List<String> poolSlugs = getPoolSlugs(profile);
+        if (!poolSlugs.isEmpty() && !new HashSet<>(poolSlugs).containsAll(uniqueCategorySlugs)) {
+            throw ApiException.badRequest("Selected categories are not available this month");
         }
 
         List<Category> categories = uniqueCategorySlugs.isEmpty()
@@ -65,6 +84,9 @@ public class ProfileService {
                     .category(category)
                     .build());
         }
+
+        profile.setCategoriesChangedAt(LocalDateTime.now());
+        profileRepository.save(profile);
 
         return toResponse(user, profile, categoryRepository.findSlugsByUserId(user.getId()));
     }
@@ -117,7 +139,33 @@ public class ProfileService {
         }
     }
 
+    public void refreshCategoryPool(UserProfile profile) {
+        String currentMonth = YearMonth.now().toString();
+        if (currentMonth.equals(profile.getCategoryPoolMonth())) return;
+
+        List<String> allSlugs = categoryRepositoryRef.findAllSorted()
+                .stream().map(Category::getSlug).collect(Collectors.toList());
+        Collections.shuffle(allSlugs);
+        List<String> pool = allSlugs.subList(0, Math.min(6, allSlugs.size()));
+
+        profile.setCategoryPoolMonth(currentMonth);
+        profile.setCategoryPool(String.join(",", pool));
+    }
+
+    private List<String> getPoolSlugs(UserProfile profile) {
+        if (profile.getCategoryPool() == null || profile.getCategoryPool().isBlank()) return List.of();
+        return List.of(profile.getCategoryPool().split(","));
+    }
+
     public ProfileResponse toResponse(User user, UserProfile p, List<String> categories) {
+        List<String> pool = getPoolSlugs(p);
+
+        boolean lockedThisMonth = p.getCategoriesChangedAt() != null &&
+                YearMonth.from(p.getCategoriesChangedAt()).equals(YearMonth.now());
+        String lockedUntil = lockedThisMonth
+                ? YearMonth.now().plusMonths(1).atDay(1).toString()
+                : null;
+
         return new ProfileResponse(
                 user.getId(),
                 user.getEmail(),
@@ -128,7 +176,9 @@ public class ProfileService {
                 p.getPlayerLevel(),
                 p.getMonthlySpend(),
                 p.getReferralCode(),
-                categories
+                categories,
+                pool,
+                lockedUntil
         );
     }
 }

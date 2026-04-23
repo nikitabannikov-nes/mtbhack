@@ -17,8 +17,8 @@ import com.mtb.game.util.ProbabilityNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Random;
@@ -49,42 +49,40 @@ public class ItemGenerationService {
                 .buildCumulativeMap(gameProperties.getRarityProbabilities());
         Rarity rarity = probabilityNormalizer.pick(cumulativeMap, random.nextDouble());
 
-        List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
-        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
-                ? bonusTemplateRepository.findByCategoryIdAndRarity(category.getId(), rarity)
-                : bonusTemplateRepository.findAvailable(category.getId(), rarity, activeBonusTypes);
-        BonusTemplate template = candidates.stream()
-                .findFirst()
-                .orElseGet(() -> bonusTemplateRepository
-                        .findByCategoryIdAndRarity(category.getId(), rarity)
-                        .stream().findFirst()
-                        .orElseThrow(() -> ApiException.unprocessable("NO_TEMPLATE", "No bonus template found")));
-
-        BigDecimal bonusValue = template.getValueMin().add(
-                BigDecimal.valueOf(random.nextDouble())
-                        .multiply(template.getValueMax().subtract(template.getValueMin()))
-        ).setScale(2, RoundingMode.HALF_UP);
-
-        String description = template.getDescriptionTemplate()
-                .replace("{value}", bonusValue.toPlainString())
-                .replace("{unit}", template.getUnit().name())
-                .replace("{partner}", template.getPartnerName() != null ? template.getPartnerName() : "");
+        BonusTemplate template = pickTemplate(user, category.getId(), rarity);
 
         return GameItem.builder()
                 .user(user)
                 .category(category)
                 .rarity(rarity)
                 .name(template.getItemName())
-                .icon(template.getIcon())
+                .iconPath(template.getIconPath())
                 .boardPosition(boardPosition)
                 .status(ItemStatus.ACTIVE)
                 .bonusType(template.getBonusType())
-                .bonusDescription(description)
-                .bonusValue(bonusValue)
+                .description(template.getDescription())
+                .bonusValue(template.getValue())
                 .bonusUnit(template.getUnit())
                 .partnerName(template.getPartnerName())
-                .timerMinDays(template.getTimerMinDays())
-                .timerMaxDays(template.getTimerMaxDays())
+                .timerDays(template.getTimerDays())
                 .build();
+    }
+
+    private BonusTemplate pickTemplate(User user, Long categoryId, Rarity rarity) {
+        List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
+
+        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
+                ? new ArrayList<>(bonusTemplateRepository.findByCategoryIdAndRarity(categoryId, rarity))
+                : new ArrayList<>(bonusTemplateRepository.findAvailable(categoryId, rarity, activeBonusTypes));
+
+        if (candidates.isEmpty()) {
+            candidates = new ArrayList<>(bonusTemplateRepository.findByCategoryIdAndRarity(categoryId, rarity));
+        }
+        if (candidates.isEmpty()) {
+            throw ApiException.unprocessable("NO_TEMPLATE", "No bonus template found");
+        }
+
+        Collections.shuffle(candidates, random);
+        return candidates.get(0);
     }
 }

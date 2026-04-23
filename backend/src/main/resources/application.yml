@@ -41,7 +41,7 @@ app:
     LEGENDARY: 0.01
 
   mock:
-    daily-event-cap: 5   # max mock events of same type per user per day
+    daily-event-cap: 3   # max mock events of same type per user per day
 
 springdoc:
   api-docs:

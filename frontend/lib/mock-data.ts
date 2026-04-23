@@ -12,6 +12,7 @@ export const MOCK_PROFILE: UserProfile = {
   monthlySpend: 850,
   selectedCategories: ['food', 'coffee'],
   referralCode: 'MTB-NK2024',
+  availableCategories: ['food', 'coffee', 'gaming', 'travel', 'fitness', 'shopping'],
 }
 
 export const MOCK_BOARD: (GameItem | null)[] = (() => {

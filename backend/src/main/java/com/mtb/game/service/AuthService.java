@@ -85,7 +85,9 @@ public class AuthService {
                 profile.getPlayerLevel(),
                 profile.getMonthlySpend(),
                 profile.getReferralCode(),
-                categories
+                categories,
+                List.of(),
+                null
         );
     }
 }
