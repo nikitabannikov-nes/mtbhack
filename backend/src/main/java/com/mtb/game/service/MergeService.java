@@ -48,9 +48,11 @@ public class MergeService {
         }
 
         List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
-        BonusTemplate template = bonusTemplateRepository
-                .findAvailable(target.getCategory().getId(), nextRarity, activeBonusTypes)
-                .stream().findFirst()
+        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
+                ? bonusTemplateRepository.findByCategoryIdAndRarity(target.getCategory().getId(), nextRarity)
+                : bonusTemplateRepository.findAvailable(target.getCategory().getId(), nextRarity, activeBonusTypes);
+        BonusTemplate template = candidates.stream()
+                .findFirst()
                 .orElseGet(() -> bonusTemplateRepository
                         .findByCategoryIdAndRarity(target.getCategory().getId(), nextRarity)
                         .stream().findFirst()

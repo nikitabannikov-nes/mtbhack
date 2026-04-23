@@ -2,7 +2,9 @@ package com.mtb.game.controller;
 
 import com.mtb.game.domain.User;
 import com.mtb.game.dto.request.TakeMtBallsRequest;
+import com.mtb.game.dto.response.MtBallBalanceResponse;
 import com.mtb.game.dto.response.MtBallsResponse;
+import com.mtb.game.dto.response.WithdrawResponse;
 import com.mtb.game.service.MtBallService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,15 +12,25 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/mt-balls")
+@RequestMapping({"/api/mt-balls", "/api/mtballs"})
 @RequiredArgsConstructor
 public class MtBallController {
 
     private final MtBallService mtBallService;
 
+    @GetMapping
+    public MtBallBalanceResponse getBalance(@AuthenticationPrincipal User user) {
+        return mtBallService.getBalance(user);
+    }
+
     @PostMapping("/take")
     public MtBallsResponse takeMtBalls(@AuthenticationPrincipal User user,
                                         @Valid @RequestBody TakeMtBallsRequest req) {
         return mtBallService.takeMtBalls(user, req.itemId());
+    }
+
+    @PostMapping("/withdraw")
+    public WithdrawResponse withdraw(@AuthenticationPrincipal User user) {
+        return mtBallService.withdraw(user);
     }
 }

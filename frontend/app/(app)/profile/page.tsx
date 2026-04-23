@@ -1,39 +1,67 @@
 'use client'
 import { useState } from 'react'
-import { MOCK_PROFILE } from '@/lib/mock-data'
-import { LEVEL_SPEND_THRESHOLDS, ENERGY_MAX_BY_LEVEL } from '@/lib/constants'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
+import { LEVEL_SPEND_THRESHOLDS } from '@/lib/constants'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 
 export default function ProfilePage() {
-  const [mtBalls,  setMtBalls]  = useState(MOCK_PROFILE.mtBalls)
-  const [withdrew, setWithdrew] = useState(false)
+  const qc = useQueryClient()
+  const setUser = useAuthStore((s) => s.setUser)
   const [toast,    setToast]    = useState<string | null>(null)
 
-  const level    = MOCK_PROFILE.level
-  const spend    = MOCK_PROFILE.monthlySpend
-  const maxEn    = ENERGY_MAX_BY_LEVEL[level]
-  const current  = LEVEL_SPEND_THRESHOLDS[level - 1]
-  const next     = LEVEL_SPEND_THRESHOLDS[level] ?? null
-  const progress = next ? spend - current.min : current.max
-  const target   = next ? next.min - current.min : current.max - current.min
+  const profileQuery = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const profile = await api.profile.get()
+      setUser(profile)
+      return profile
+    },
+  })
+
+  const levelQuery = useQuery({
+    queryKey: ['profile', 'level'],
+    queryFn: api.profile.level,
+  })
+
+  const mtballsQuery = useQuery({
+    queryKey: ['mtballs'],
+    queryFn: api.mtballs.balance,
+  })
 
   function showToast(msg: string) {
     setToast(msg); setTimeout(() => setToast(null), 2500)
   }
 
+  const withdrawMutation = useMutation({
+    mutationFn: api.mtballs.withdraw,
+    onSuccess: async (result) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['mtballs'] }),
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+      ])
+      showToast(`✅ ${result.message}`)
+    },
+    onError: () => showToast('Не удалось вывести МТБаллы'),
+  })
+
+  const profile = profileQuery.data
+  const mtBalls = mtballsQuery.data?.balance ?? profile?.mtBalls ?? 0
+  const level = profile?.level ?? 1
+  const spend = profile?.monthlySpend ?? 0
+  const maxEn = profile?.maxEnergy ?? 7
+  const current = LEVEL_SPEND_THRESHOLDS[Math.max(0, level - 1)]
+  const next = LEVEL_SPEND_THRESHOLDS[level] ?? null
+  const progress = next ? spend - current.min : current.max
+  const target = next ? next.min - current.min : current.max - current.min
+
   function handleWithdraw() {
-    if (mtBalls <= 0) return
-    setWithdrew(true)
-    setMtBalls(0)
-    showToast(`✅ ${MOCK_PROFILE.mtBalls} МТБаллов выведены на счёт`)
+    if (mtBalls <= 0 || withdrawMutation.isPending) return
+    withdrawMutation.mutate()
   }
 
-  const txHistory = [
-    { id: '1', delta:  1.5, reason: 'Легендарный предмет — Еда',    date: '23 апр' },
-    { id: '2', delta: -1.5, reason: 'Вывод на бонусный счёт',        date: '20 апр' },
-    { id: '3', delta:  0.7, reason: 'Легендарный предмет — Кофе',    date: '18 апр' },
-    { id: '4', delta:  1.2, reason: 'Легендарный предмет — Доставка',date: '15 апр' },
-  ]
+  const txHistory = mtballsQuery.data?.transactions ?? []
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -45,7 +73,7 @@ export default function ProfilePage() {
             👤
           </div>
           <div>
-            <p className="font-black text-lg leading-tight">{MOCK_PROFILE.username}</p>
+            <p className="font-black text-lg leading-tight">{profile?.username ?? 'Профиль'}</p>
             <p className="text-blue-200 text-xs mt-0.5">МТБанк</p>
             <span className="inline-block mt-1.5 bg-white/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full">
               Уровень {level}
@@ -66,7 +94,7 @@ export default function ProfilePage() {
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs text-blue-200">
               <span>До уровня {level + 1}</span>
-              <span className="text-white font-bold">{spend} / {next.min} BYN</span>
+              <span className="text-white font-bold">{levelQuery.data?.spendCurrent ?? spend} / {levelQuery.data?.spendRequired ?? next.min} BYN</span>
             </div>
             <ProgressBar value={progress} max={target} color="bg-white/90" height="h-2" />
             <p className="text-[10px] text-blue-200">Макс. энергия: ⚡ {maxEn}</p>
@@ -113,10 +141,10 @@ export default function ProfilePage() {
           </div>
           <button
             onClick={handleWithdraw}
-            disabled={mtBalls <= 0 || withdrew}
+            disabled={mtBalls <= 0 || withdrawMutation.isPending}
             className="bg-brand-600 text-white text-xs font-black px-4 py-2.5 rounded-xl disabled:opacity-40 active:scale-95 transition-transform"
           >
-            {withdrew ? '✓ Выведено' : 'Вывести'}
+            {withdrawMutation.isPending ? 'Выводим...' : 'Вывести'}
           </button>
         </div>
       </div>
@@ -125,7 +153,7 @@ export default function ProfilePage() {
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <p className="font-black text-sm text-gray-900 mb-2">Реферальный код</p>
         <div className="bg-gray-50 rounded-xl px-4 py-3 font-mono text-sm font-bold text-gray-800 text-center tracking-[0.2em] border border-gray-200">
-          {MOCK_PROFILE.referralCode}
+          {profile?.referralCode ?? '--------'}
         </div>
         <p className="text-xs text-gray-400 mt-2 text-center">
           Поделись кодом — друг подключит пакет, ты получишь ⚡
@@ -136,11 +164,14 @@ export default function ProfilePage() {
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <p className="font-black text-sm text-gray-900 mb-3">История МТБаллов</p>
         <div className="flex flex-col gap-2">
+          {txHistory.length === 0 && (
+            <p className="text-xs text-gray-400">Пока нет операций по МТБаллам</p>
+          )}
           {txHistory.map(tx => (
             <div key={tx.id} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
               <div>
                 <p className="text-xs font-semibold text-gray-700">{tx.reason}</p>
-                <p className="text-[10px] text-gray-400">{tx.date}</p>
+                <p className="text-[10px] text-gray-400">{new Date(tx.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}</p>
               </div>
               <span className={`text-sm font-black ${tx.delta > 0 ? 'text-green-600' : 'text-red-500'}`}>
                 {tx.delta > 0 ? '+' : ''}{tx.delta}
@@ -149,6 +180,10 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
+
+      {(profileQuery.isLoading || levelQuery.isLoading || mtballsQuery.isLoading) && (
+        <div className="text-center text-sm text-gray-400 py-4">Загружаем профиль...</div>
+      )}
 
       {/* Toast */}
       {toast && (

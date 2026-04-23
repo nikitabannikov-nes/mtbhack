@@ -1,30 +1,30 @@
 'use client'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
 import { RARITY_CONFIG, CATEGORY_CONFIG, BOARD_SIZE } from '@/lib/constants'
-import { pickItem, getMergeResult, randomMtBalls, randomTimer, daysLeft } from '@/lib/game-logic'
-import { MOCK_BOARD, MOCK_PROFILE } from '@/lib/mock-data'
+import { daysLeft } from '@/lib/game-logic'
 import { RarityBadge } from '@/components/ui/RarityBadge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Modal } from '@/components/ui/Modal'
 import type { GameItem, CategoryId } from '@/types'
 
-/* ─── initial state ─────────────────────────────────────────── */
-const INIT_CELLS    = MOCK_BOARD
-const INIT_ENERGY   = MOCK_PROFILE.energy
-const INIT_MAX      = MOCK_PROFILE.maxEnergy
-const INIT_MTBALLS  = MOCK_PROFILE.mtBalls
-const INIT_CATS     = MOCK_PROFILE.selectedCategories as CategoryId[]
-const INIT_LEVEL    = MOCK_PROFILE.level
-
 export default function GamePage() {
-  const [cells,    setCells]    = useState<(GameItem | null)[]>(INIT_CELLS)
-  const [energy,   setEnergy]   = useState(INIT_ENERGY)
-  const [maxEn,    setMaxEn]    = useState(INIT_MAX)
-  const [mtBalls,  setMtBalls]  = useState(INIT_MTBALLS)
+  const qc = useQueryClient()
+  const setUser = useAuthStore((s) => s.setUser)
+  const authUser = useAuthStore((s) => s.user)
+
+  const [cells,    setCells]    = useState<(GameItem | null)[]>(Array(BOARD_SIZE).fill(null))
+  const [energy,   setEnergy]   = useState(authUser?.energy ?? 0)
+  const [maxEn,    setMaxEn]    = useState(authUser?.maxEnergy ?? 7)
+  const [mtBalls,  setMtBalls]  = useState(authUser?.mtBalls ?? 0)
   const [selected, setSelected] = useState<GameItem | null>(null)
   const [popIdx,   setPopIdx]   = useState<number | null>(null)
   const [shakeBtn, setShakeBtn] = useState(false)
   const [toasts,   setToasts]   = useState<{ id: string; text: string; type: string }[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(authUser?.selectedCategories ?? [])
+  const [level, setLevel] = useState(authUser?.level ?? 1)
 
   // drag state
   const [dragFrom, setDragFrom] = useState<number | null>(null)
@@ -32,13 +32,41 @@ export default function GamePage() {
   const dragFromRef             = useRef<number | null>(null)
   const cellRefs                = useRef<(HTMLDivElement | null)[]>(Array(BOARD_SIZE).fill(null))
 
-  // Clean up expired frozen items on mount
+  const profileQuery = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const profile = await api.profile.get()
+      setUser(profile)
+      setEnergy(profile.energy)
+      setMaxEn(profile.maxEnergy)
+      setMtBalls(profile.mtBalls)
+      setSelectedCategories(profile.selectedCategories)
+      setLevel(profile.level)
+      return profile
+    },
+  })
+
+  const boardQuery = useQuery({
+    queryKey: ['board'],
+    queryFn: async () => {
+      const board = await api.game.board()
+      setCells(board.cells)
+      setEnergy(board.energy ?? 0)
+      setMaxEn(board.maxEnergy ?? 7)
+      return board
+    },
+  })
+
+  const balanceQuery = useQuery({
+    queryKey: ['mtballs'],
+    queryFn: api.mtballs.balance,
+  })
+
   useEffect(() => {
-    setCells(prev => prev.map(c =>
-      c?.status === 'FROZEN' && c.expiresAt && daysLeft(c.expiresAt) === 0
-        ? null : c,
-    ))
-  }, [])
+    if (typeof balanceQuery.data?.balance === 'number') {
+      setMtBalls(balanceQuery.data.balance)
+    }
+  }, [balanceQuery.data])
 
   /* ─── toast helper ──────────────────────────────────────────── */
   function toast(text: string, type = 'info') {
@@ -52,66 +80,124 @@ export default function GamePage() {
     setTimeout(() => setPopIdx(null), 600)
   }
 
+  async function refreshCoreData() {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['board'] }),
+      qc.invalidateQueries({ queryKey: ['profile'] }),
+      qc.invalidateQueries({ queryKey: ['mtballs'] }),
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+    ])
+  }
+
+  const createMutation = useMutation({
+    mutationFn: (boardPosition: number) => api.game.createItem(boardPosition),
+    onSuccess: async (result) => {
+      setCells(prev => {
+        const next = [...prev]
+        next[result.item.boardPosition] = result.item
+        return next
+      })
+      setEnergy(result.energyLeft)
+      pop(result.item.boardPosition)
+      await refreshCoreData()
+    },
+    onError: () => toast('Не удалось создать предмет', 'error'),
+  })
+
+  const mergeMutation = useMutation({
+    mutationFn: ({ sourceItemId, targetItemId, targetPosition }: { sourceItemId: number; targetItemId: number; targetPosition: number }) =>
+      api.game.merge(sourceItemId, targetItemId, targetPosition),
+    onError: () => toast('Не удалось выполнить слияние', 'error'),
+  })
+
+  const moveMutation = useMutation({
+    mutationFn: ({ sourceItemId, targetPosition }: { sourceItemId: number; targetPosition: number }) =>
+      api.game.moveItem(sourceItemId, targetPosition),
+    onSuccess: (board) => {
+      setCells(board.cells)
+      if (typeof board.energy === 'number') setEnergy(board.energy)
+      if (typeof board.maxEnergy === 'number') setMaxEn(board.maxEnergy)
+    },
+    onError: () => toast('Не удалось переместить предмет', 'error'),
+  })
+
+  const activateMutation = useMutation({
+    mutationFn: (itemId: number) => api.game.activateItem(itemId),
+    onError: () => toast('Не удалось активировать бонус', 'error'),
+  })
+
+  const takeMtBallsMutation = useMutation({
+    mutationFn: (itemId: number) => api.game.takeMtBalls(itemId),
+    onError: () => toast('Не удалось забрать МТБаллы', 'error'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (itemId: number) => api.game.deleteItem(itemId),
+    onError: () => toast('Не удалось удалить предмет', 'error'),
+  })
+
   /* ─── game actions ──────────────────────────────────────────── */
   function handleCreate() {
     if (energy < 1) { setShakeBtn(true); setTimeout(() => setShakeBtn(false), 500); return }
     const emptySlots = cells.map((c, i) => c === null ? i : -1).filter(i => i !== -1)
     if (!emptySlots.length) return
     const pos  = emptySlots[Math.floor(Math.random() * emptySlots.length)]
-    const item = pickItem(INIT_CATS, pos)
-    setCells(prev => { const n = [...prev]; n[pos] = item; return n })
-    setEnergy(e => Math.max(0, e - 1))
-    pop(pos)
+    createMutation.mutate(pos)
   }
 
-  function handleMerge(fromIdx: number, toIdx: number) {
+  async function handleMerge(fromIdx: number, toIdx: number) {
     const a = cells[fromIdx], b = cells[toIdx]
     if (!a || !b) return
-    const merged = getMergeResult(a, b, toIdx)
-    if (!merged) {
-      // just swap
-      setCells(prev => {
-        const n = [...prev]; n[fromIdx] = b; n[toIdx] = a; return n
-      })
-      return
-    }
+    const result = await mergeMutation.mutateAsync({
+      sourceItemId: Number(a.id),
+      targetItemId: Number(b.id),
+      targetPosition: toIdx,
+    })
+    const merged = result.merged
     setCells(prev => { const n = [...prev]; n[fromIdx] = null; n[toIdx] = merged; return n })
     pop(toIdx)
     const cfg = RARITY_CONFIG[merged.rarity]
     toast(`✨ Слияние! ${cfg.label}`, 'merge')
     if (merged.rarity === 'LEGENDARY') toast('🏆 LEGENDARY! Нажми на предмет!', 'legendary')
+    await refreshCoreData()
   }
 
-  function handleMove(fromIdx: number, toIdx: number) {
-    setCells(prev => {
-      const n = [...prev]; n[toIdx] = { ...prev[fromIdx]!, boardPosition: toIdx }; n[fromIdx] = null; return n
+  async function handleMove(fromIdx: number, toIdx: number) {
+    const item = cells[fromIdx]
+    if (!item) return
+    const board = await moveMutation.mutateAsync({
+      sourceItemId: Number(item.id),
+      targetPosition: toIdx,
     })
+    setCells(board.cells)
   }
 
-  function handleActivate(item: GameItem) {
-    const t   = item.timerMinDays ?? 1
-    const max = item.timerMaxDays ?? 3
-    const exp = randomTimer(t, max)
+  async function handleActivate(item: GameItem) {
+    const result = await activateMutation.mutateAsync(Number(item.id))
     setCells(prev => prev.map(c =>
-      c?.id === item.id ? { ...c, status: 'FROZEN', expiresAt: exp } : c,
+      c?.id === item.id ? { ...c, status: 'FROZEN', expiresAt: result.expiresAt } : c,
     ))
     setSelected(null)
     toast('✅ Бонус активирован!', 'success')
+    await refreshCoreData()
   }
 
-  function handleTakeMtBalls(item: GameItem) {
-    const mb = randomMtBalls()
+  async function handleTakeMtBalls(item: GameItem) {
+    const result = await takeMtBallsMutation.mutateAsync(Number(item.id))
     setCells(prev => prev.map(c => c?.id === item.id ? null : c))
-    setMtBalls(m => Math.round((m + mb) * 10) / 10)
+    setMtBalls(result.newBalance)
     setSelected(null)
-    toast(`💰 +${mb} МТБаллов!`, 'success')
+    toast(`💰 +${result.mtBalls} МТБаллов!`, 'success')
+    await refreshCoreData()
   }
 
-  function handleDelete(item: GameItem) {
+  async function handleDelete(item: GameItem) {
+    const result = await deleteMutation.mutateAsync(Number(item.id))
     setCells(prev => prev.map(c => c?.id === item.id ? null : c))
-    setEnergy(e => Math.round(Math.min(maxEn, e + 0.5) * 10) / 10)
+    setEnergy(result.energyLeft)
     setSelected(null)
     toast('+0.5 ⚡ за удаление', 'info')
+    await refreshCoreData()
   }
 
   /* ─── drag & drop helpers ───────────────────────────────────── */
@@ -144,8 +230,8 @@ export default function GamePage() {
     dragFromRef.current = null
     setDragFrom(null)
     if (fromIdx === null || fromIdx === toIdx) return
-    if (canMergeCells(cells[fromIdx], cells[toIdx])) handleMerge(fromIdx, toIdx)
-    else if (!cells[toIdx]) handleMove(fromIdx, toIdx)
+    if (canMergeCells(cells[fromIdx], cells[toIdx])) void handleMerge(fromIdx, toIdx)
+    else void handleMove(fromIdx, toIdx)
   }
 
   function onMouseDragEnd() { setDragFrom(null); setOverIdx(null); dragFromRef.current = null }
@@ -194,8 +280,8 @@ export default function GamePage() {
       return
     }
 
-    if (canMergeCells(cells[fromIdx], cells[toIdx])) handleMerge(fromIdx, toIdx)
-    else if (!cells[toIdx]) handleMove(fromIdx, toIdx)
+    if (canMergeCells(cells[fromIdx], cells[toIdx])) void handleMerge(fromIdx, toIdx)
+    else void handleMove(fromIdx, toIdx)
   }
 
   /* ─── derived ───────────────────────────────────────────────── */
@@ -216,7 +302,7 @@ export default function GamePage() {
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <span className="bg-white/20 text-white text-xs font-black px-2.5 py-1 rounded-full">
-              Ур. {INIT_LEVEL}
+              Ур. {level}
             </span>
           </div>
         </div>
@@ -237,7 +323,7 @@ export default function GamePage() {
 
       {/* ── Category chips ──────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
-        {INIT_CATS.map(id => {
+        {selectedCategories.map(id => {
           const cat = CATEGORY_CONFIG[id]
           return (
             <span
@@ -329,13 +415,20 @@ export default function GamePage() {
             : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none',
           shakeBtn ? 'animate-shake' : '',
         ].join(' ')}
+        disabled={createMutation.isPending}
       >
         {boardFull
           ? '🚫 Доска заполнена — освободи клетку'
           : energy < 1
           ? '⚡ Нет энергии — выполни задание'
+          : createMutation.isPending
+          ? 'Создаём предмет...'
           : `Открыть клетку  −1 ⚡`}
       </button>
+
+      {(boardQuery.isLoading || profileQuery.isLoading || balanceQuery.isLoading) && (
+        <div className="text-center text-sm text-gray-400 py-3">Загружаем игру...</div>
+      )}
 
       {/* ── Toasts ──────────────────────────────────────────────── */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[200] pointer-events-none">

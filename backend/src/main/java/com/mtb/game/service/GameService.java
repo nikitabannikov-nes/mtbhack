@@ -18,10 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -65,6 +67,31 @@ public class GameService {
         return new CreateItemResponse(toResponse(item), energyAfter);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<Integer> findRandomEmptyPosition(User user) {
+        var occupied = gameItemRepository.findByUserId(user.getId()).stream()
+                .map(GameItem::getBoardPosition)
+                .collect(java.util.stream.Collectors.toSet());
+        List<Integer> available = IntStream.range(0, gameProperties.getGame().getBoardSize())
+                .filter(pos -> !occupied.contains(pos))
+                .boxed()
+                .toList();
+        if (available.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(available.get(random.nextInt(available.size())));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getEnergy(User user) {
+        UserProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> ApiException.notFound("Profile not found"));
+        return Map.of(
+                "energy", profile.getEnergy(),
+                "maxEnergy", profile.getMaxEnergy()
+        );
+    }
+
     @Transactional
     public GameItemResponse activateItem(User user, Long itemId) {
         GameItem item = getOwnedItem(user, itemId);
@@ -81,10 +108,40 @@ public class GameService {
         int days = minDays + (maxDays > minDays ? random.nextInt(maxDays - minDays + 1) : 0);
 
         item.setStatus(ItemStatus.FROZEN);
-        item.setExpiresAt(Instant.now().plus(days, ChronoUnit.DAYS));
+        item.setExpiresAt(LocalDateTime.now().plusDays(days));
         gameItemRepository.save(item);
 
         return toResponse(item);
+    }
+
+    @Transactional
+    public BoardResponse moveItem(User user, Long sourceItemId, int targetPosition) {
+        GameItem source = getOwnedItem(user, sourceItemId);
+        if (source.getStatus() == ItemStatus.FROZEN) {
+            throw ApiException.badRequest("Cannot move a frozen item");
+        }
+
+        var occupantOpt = gameItemRepository.findByUserIdAndBoardPosition(user.getId(), targetPosition);
+        if (occupantOpt.isPresent()) {
+            GameItem occupant = occupantOpt.get();
+            if (occupant.getId().equals(source.getId())) {
+                return getBoard(user);
+            }
+            if (occupant.getStatus() == ItemStatus.FROZEN) {
+                throw ApiException.badRequest("Cannot swap with a frozen item");
+            }
+
+            int originalPosition = source.getBoardPosition();
+            source.setBoardPosition(targetPosition);
+            occupant.setBoardPosition(originalPosition);
+            gameItemRepository.save(source);
+            gameItemRepository.save(occupant);
+        } else {
+            source.setBoardPosition(targetPosition);
+            gameItemRepository.save(source);
+        }
+
+        return getBoard(user);
     }
 
     @Transactional
@@ -102,7 +159,7 @@ public class GameService {
     }
 
     private void cleanExpiredItems(User user) {
-        List<GameItem> expired = gameItemRepository.findExpiredFrozen(user.getId(), Instant.now());
+        List<GameItem> expired = gameItemRepository.findExpiredFrozen(user.getId(), LocalDateTime.now());
         expired.forEach(item -> {
             item.setStatus(ItemStatus.ACTIVE);
             item.setExpiresAt(null);

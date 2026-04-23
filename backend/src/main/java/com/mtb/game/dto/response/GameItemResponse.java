@@ -6,7 +6,7 @@ import com.mtb.game.domain.enums.ItemStatus;
 import com.mtb.game.domain.enums.Rarity;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 public record GameItemResponse(
         Long id,
@@ -21,6 +21,6 @@ public record GameItemResponse(
         BigDecimal bonusValue,
         BonusUnit bonusUnit,
         String partnerName,
-        Instant expiresAt,
-        Instant createdAt
+        LocalDateTime expiresAt,
+        LocalDateTime createdAt
 ) {}

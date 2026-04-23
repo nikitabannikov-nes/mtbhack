@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "mock_event_log",
+@Table(name = "mock_event_logs",
     uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "event_type", "event_date"}))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class MockEventLog {

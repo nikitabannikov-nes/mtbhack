@@ -6,7 +6,9 @@ import com.mtb.game.domain.User;
 import com.mtb.game.domain.UserProfile;
 import com.mtb.game.domain.enums.ItemStatus;
 import com.mtb.game.domain.enums.Rarity;
+import com.mtb.game.dto.response.MtBallBalanceResponse;
 import com.mtb.game.dto.response.MtBallsResponse;
+import com.mtb.game.dto.response.WithdrawResponse;
 import com.mtb.game.exception.ApiException;
 import com.mtb.game.repository.GameItemRepository;
 import com.mtb.game.repository.MtBallTransactionRepository;
@@ -59,6 +61,45 @@ public class MtBallService {
         gameItemRepository.delete(item);
 
         return new MtBallsResponse(amount, profile.getMtBalls());
+    }
+
+    @Transactional(readOnly = true)
+    public MtBallBalanceResponse getBalance(User user) {
+        UserProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> ApiException.notFound("Profile not found"));
+
+        var transactions = transactionRepository.findTop20ByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(tx -> new MtBallBalanceResponse.TransactionItem(
+                        tx.getId(),
+                        tx.getDelta(),
+                        tx.getReason(),
+                        tx.getCreatedAt()
+                ))
+                .toList();
+
+        return new MtBallBalanceResponse(profile.getMtBalls(), transactions);
+    }
+
+    @Transactional
+    public WithdrawResponse withdraw(User user) {
+        UserProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> ApiException.notFound("Profile not found"));
+
+        if (profile.getMtBalls().compareTo(BigDecimal.ZERO) <= 0) {
+            throw ApiException.unprocessable("NO_MT_BALLS", "No MT-balls available for withdrawal");
+        }
+
+        BigDecimal amount = profile.getMtBalls();
+        profile.setMtBalls(BigDecimal.ZERO);
+        profileRepository.save(profile);
+
+        transactionRepository.save(MtBallTransaction.builder()
+                .user(user)
+                .delta(amount.negate())
+                .reason("Withdrawal to bonus account")
+                .build());
+
+        return new WithdrawResponse(true, "MT-balls withdrawn successfully");
     }
 
     private BigDecimal randomMtBalls() {

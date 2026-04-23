@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { MOCK_PROFILE } from '@/lib/mock-data'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -83,23 +82,6 @@ export default function LoginPage() {
               {loading ? 'Входим...' : 'Войти'}
             </button>
           </form>
-
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-xs text-gray-400">или</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => { setAuth('demo-token', MOCK_PROFILE); router.push('/game') }}
-            className="w-full py-4 rounded-xl text-sm font-bold text-brand-600 border-2 border-brand-200 bg-brand-50 active:scale-95 transition-transform"
-          >
-            🎮 Войти как тестовый пользователь
-          </button>
 
           <p className="text-center text-sm text-gray-500 mt-4">
             Нет аккаунта?{' '}

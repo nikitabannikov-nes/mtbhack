@@ -26,9 +26,30 @@ public class TaskController {
         return taskService.getTasks(user, type);
     }
 
+    @GetMapping("/daily")
+    public List<TaskProgressResponse> getDailyTasks(@AuthenticationPrincipal User user) {
+        return taskService.getTasks(user, TaskType.DAILY);
+    }
+
+    @GetMapping("/weekly")
+    public List<TaskProgressResponse> getWeeklyTasks(@AuthenticationPrincipal User user) {
+        return taskService.getTasks(user, TaskType.WEEKLY);
+    }
+
+    @GetMapping("/referral")
+    public List<TaskProgressResponse> getReferralTasks(@AuthenticationPrincipal User user) {
+        return taskService.getTasks(user, TaskType.REFERRAL);
+    }
+
     @PostMapping("/claim")
     public ClaimTaskResponse claimTask(@AuthenticationPrincipal User user,
                                         @Valid @RequestBody ClaimTaskRequest req) {
         return taskService.claim(user, req.taskProgressId());
+    }
+
+    @PostMapping("/{taskProgressId}/claim")
+    public ClaimTaskResponse claimTaskById(@AuthenticationPrincipal User user,
+                                           @PathVariable Long taskProgressId) {
+        return taskService.claim(user, taskProgressId);
     }
 }

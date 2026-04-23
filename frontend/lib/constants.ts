@@ -56,16 +56,16 @@ export const CATEGORY_CONFIG: Record<CategoryId, {
   color: string
   desc: string
 }> = {
-  coffee:        { name: 'Кофе',          icon: '☕', color: '#795548', desc: 'Кофейни и напитки' },
-  food:          { name: 'Еда',            icon: '🍕', color: '#E53935', desc: 'Рестораны и кафе' },
-  delivery:      { name: 'Доставка',       icon: '📦', color: '#F57C00', desc: 'Курьерские сервисы' },
-  transport:     { name: 'Транспорт',      icon: '🚕', color: '#0288D1', desc: 'Такси и каршеринг' },
-  subscriptions: { name: 'Подписки',       icon: '🎵', color: '#7B1FA2', desc: 'Стриминг и сервисы' },
-  marketplace:   { name: 'Маркетплейс',   icon: '🛍️', color: '#388E3C', desc: 'Онлайн-магазины' },
-  games:         { name: 'Игры',           icon: '🎮', color: '#1565C0', desc: 'Игры и развлечения' },
-  travel:        { name: 'Путешествия',    icon: '✈️', color: '#00897B', desc: 'Билеты и отели' },
-  education:     { name: 'Обучение',       icon: '📚', color: '#F9A825', desc: 'Курсы и образование' },
-  tech:          { name: 'Техника',        icon: '💻', color: '#546E7A', desc: 'Электроника и гаджеты' },
+  coffee:    { name: 'Кофе',         icon: '☕', color: '#795548', desc: 'Кофейни и напитки' },
+  food:      { name: 'Еда',          icon: '🍕', color: '#E53935', desc: 'Рестораны и доставка еды' },
+  transport: { name: 'Транспорт',    icon: '🚗', color: '#0288D1', desc: 'Каршеринг и заправки' },
+  shopping:  { name: 'Шоппинг',      icon: '🛍️', color: '#8E24AA', desc: 'Интернет-магазины и ТЦ' },
+  gaming:    { name: 'Развлечения',  icon: '🎮', color: '#1565C0', desc: 'Игры и досуг' },
+  travel:    { name: 'Путешествия',  icon: '✈️', color: '#00897B', desc: 'Отели и авиабилеты' },
+  fitness:   { name: 'Фитнес',       icon: '💪', color: '#D32F2F', desc: 'Спорт и здоровье' },
+  education: { name: 'Образование',  icon: '📚', color: '#F9A825', desc: 'Курсы и обучение' },
+  streaming: { name: 'Стриминг',     icon: '🎬', color: '#C2185B', desc: 'Музыка и видео' },
+  tech:      { name: 'Техника',      icon: '💻', color: '#546E7A', desc: 'Гаджеты и электроника' },
 }
 
 export const ENERGY_MAX_BY_LEVEL: Record<number, number> = {

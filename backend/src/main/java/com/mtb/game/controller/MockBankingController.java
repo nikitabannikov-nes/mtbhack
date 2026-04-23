@@ -1,7 +1,9 @@
 package com.mtb.game.controller;
 
 import com.mtb.game.domain.User;
+import com.mtb.game.dto.request.ReferralRequest;
 import com.mtb.game.dto.request.MockSpendRequest;
+import com.mtb.game.dto.response.ProfileResponse;
 import com.mtb.game.dto.response.MockEventResponse;
 import com.mtb.game.service.MockBankingService;
 import jakarta.validation.Valid;
@@ -31,5 +33,16 @@ public class MockBankingController {
     @PostMapping("/login")
     public MockEventResponse login(@AuthenticationPrincipal User user) {
         return mockBankingService.mockLogin(user);
+    }
+
+    @PostMapping("/login-event")
+    public MockEventResponse loginEvent(@AuthenticationPrincipal User user) {
+        return mockBankingService.mockLogin(user);
+    }
+
+    @PostMapping("/referral")
+    public ProfileResponse referral(@AuthenticationPrincipal User user,
+                                    @Valid @RequestBody ReferralRequest req) {
+        return mockBankingService.mockReferral(user, req.referralCode());
     }
 }

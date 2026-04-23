@@ -50,9 +50,10 @@ public class ItemGenerationService {
         Rarity rarity = probabilityNormalizer.pick(cumulativeMap, random.nextDouble());
 
         List<BonusType> activeBonusTypes = gameItemRepository.findActiveBonusTypes(user.getId());
-        BonusTemplate template = bonusTemplateRepository
-                .findAvailable(category.getId(), rarity, activeBonusTypes)
-                .stream()
+        List<BonusTemplate> candidates = activeBonusTypes.isEmpty()
+                ? bonusTemplateRepository.findByCategoryIdAndRarity(category.getId(), rarity)
+                : bonusTemplateRepository.findAvailable(category.getId(), rarity, activeBonusTypes);
+        BonusTemplate template = candidates.stream()
                 .findFirst()
                 .orElseGet(() -> bonusTemplateRepository
                         .findByCategoryIdAndRarity(category.getId(), rarity)

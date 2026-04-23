@@ -43,7 +43,7 @@ public class TaskService {
                             .claimed(false)
                             .build());
 
-            if (!progress.isCompleted()) {
+            if (!isCompleted(progress)) {
                 progress.setCurrentCount(progress.getCurrentCount() + 1);
                 if (progress.getCurrentCount() >= task.getTargetCount()) {
                     progress.setCompleted(true);
@@ -78,10 +78,10 @@ public class TaskService {
         if (!progress.getUser().getId().equals(user.getId())) {
             throw ApiException.unauthorized("Not your task");
         }
-        if (!progress.isCompleted()) {
+        if (!isCompleted(progress)) {
             throw ApiException.unprocessable("TASK_NOT_COMPLETED", "Task not yet completed");
         }
-        if (progress.isClaimed()) {
+        if (isClaimed(progress)) {
             throw ApiException.conflict("Reward already claimed");
         }
 
@@ -98,13 +98,22 @@ public class TaskService {
                 progressId,
                 task.getId(),
                 task.getType(),
+                task.getEventType(),
                 task.getTitle(),
                 task.getIcon(),
                 task.getEnergyReward(),
                 task.getTargetCount(),
                 p.getCurrentCount(),
-                p.isCompleted(),
-                p.isClaimed()
+                isCompleted(p),
+                isClaimed(p)
         );
+    }
+
+    private boolean isCompleted(UserTaskProgress progress) {
+        return Boolean.TRUE.equals(progress.getCompleted());
+    }
+
+    private boolean isClaimed(UserTaskProgress progress) {
+        return Boolean.TRUE.equals(progress.getClaimed());
     }
 }

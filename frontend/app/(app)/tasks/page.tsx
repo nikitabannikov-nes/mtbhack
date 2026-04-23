@@ -1,6 +1,8 @@
 'use client'
-import { useState } from 'react'
-import { MOCK_TASKS_DAILY, MOCK_TASKS_WEEKLY, MOCK_TASKS_REFERRAL, MOCK_PROFILE } from '@/lib/mock-data'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import type { Task } from '@/types'
 
@@ -11,31 +13,67 @@ const GROUP_META = {
 }
 
 export default function TasksPage() {
-  const [daily,    setDaily]    = useState(MOCK_TASKS_DAILY)
-  const [weekly,   setWeekly]   = useState(MOCK_TASKS_WEEKLY)
-  const [referral]              = useState(MOCK_TASKS_REFERRAL)
-  const [energy,   setEnergy]   = useState(MOCK_PROFILE.energy)
-  const [maxEn]                 = useState(MOCK_PROFILE.maxEnergy)
-  const [claimed,  setClaimed]  = useState<Set<string>>(new Set())
+  const qc = useQueryClient()
+  const setUser = useAuthStore((s) => s.setUser)
   const [toast,    setToast]    = useState<string | null>(null)
+
+  const profileQuery = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const profile = await api.profile.get()
+      setUser(profile)
+      return profile
+    },
+  })
+
+  const dailyQuery = useQuery({
+    queryKey: ['tasks', 'DAILY'],
+    queryFn: api.tasks.daily,
+  })
+
+  const weeklyQuery = useQuery({
+    queryKey: ['tasks', 'WEEKLY'],
+    queryFn: api.tasks.weekly,
+  })
+
+  const referralQuery = useQuery({
+    queryKey: ['tasks', 'REFERRAL'],
+    queryFn: api.tasks.referral,
+  })
 
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 2200)
   }
 
-  function claim(task: Task) {
-    if (!task.completed || claimed.has(task.id)) return
-    setEnergy(e => Math.min(maxEn, e + task.energyReward))
-    setClaimed(s => { const n = new Set(s); n.add(task.id); return n })
-    showToast(`+${task.energyReward} ⚡ получено!`)
-  }
+  const claimMutation = useMutation({
+    mutationFn: (taskId: string) => api.tasks.claim(taskId),
+    onSuccess: async (result) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+      ])
+      showToast(`+${result.energyGranted} ⚡ получено!`)
+    },
+    onError: () => showToast('Не удалось забрать награду'),
+  })
 
-  const groups = [
+  const daily = dailyQuery.data ?? []
+  const weekly = weeklyQuery.data ?? []
+  const referral = referralQuery.data ?? []
+  const energy = profileQuery.data?.energy ?? 0
+  const maxEn = profileQuery.data?.maxEnergy ?? 7
+
+  const groups = useMemo(() => [
     { key: 'DAILY'    as const, tasks: daily    },
     { key: 'WEEKLY'   as const, tasks: weekly   },
     { key: 'REFERRAL' as const, tasks: referral },
-  ]
+  ], [daily, weekly, referral])
+
+  function claim(task: Task) {
+    if (!task.completed || task.claimed || claimMutation.isPending) return
+    claimMutation.mutate(task.id)
+  }
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -54,7 +92,7 @@ export default function TasksPage() {
 
       {groups.map(({ key, tasks }) => {
         const meta   = GROUP_META[key]
-        const claimable = tasks.filter(t => t.completed && !claimed.has(t.id)).length
+        const claimable = tasks.filter(t => t.completed && !t.claimed).length
 
         return (
           <section key={key}>
@@ -72,9 +110,8 @@ export default function TasksPage() {
 
             <div className="flex flex-col gap-2">
               {tasks.map(task => {
-                const isClaimed = claimed.has(task.id)
+                const isClaimed = task.claimed
                 const done      = task.completed
-                const pct       = Math.min(100, Math.round(task.currentCount / Math.max(task.targetCount, 1) * 100))
 
                 return (
                   <div
@@ -102,7 +139,7 @@ export default function TasksPage() {
 
                     <button
                       onClick={() => claim(task)}
-                      disabled={!done || isClaimed}
+                      disabled={!done || isClaimed || claimMutation.isPending}
                       className={[
                         'flex-shrink-0 rounded-xl px-3 py-2.5 text-xs font-black transition-all',
                         isClaimed
@@ -121,6 +158,10 @@ export default function TasksPage() {
           </section>
         )
       })}
+
+      {(profileQuery.isLoading || dailyQuery.isLoading || weeklyQuery.isLoading || referralQuery.isLoading) && (
+        <div className="text-center text-sm text-gray-400 py-6">Загружаем задания...</div>
+      )}
 
       {/* Toast */}
       {toast && (

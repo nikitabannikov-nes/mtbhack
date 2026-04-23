@@ -1,9 +1,9 @@
 export type Rarity = 'DEFAULT' | 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY'
 
 export type CategoryId =
-  | 'coffee' | 'food' | 'delivery' | 'transport'
-  | 'subscriptions' | 'marketplace' | 'games'
-  | 'travel' | 'education' | 'tech'
+  | 'coffee' | 'food' | 'transport' | 'shopping'
+  | 'gaming' | 'travel' | 'fitness' | 'education'
+  | 'streaming' | 'tech'
 
 export type RewardType =
   | 'NONE' | 'CASHBACK_BOOST' | 'PROMO_CODE'
@@ -91,6 +91,8 @@ export interface AuthResponse {
 
 export interface BoardResponse {
   cells: (GameItem | null)[]
+  energy?: number
+  maxEnergy?: number
 }
 
 export interface CreateItemResponse {
@@ -101,7 +103,7 @@ export interface CreateItemResponse {
 
 export interface MergeResponse {
   merged: GameItem
-  energyLeft: number
+  energyLeft?: number
   reward?: Reward
 }
 

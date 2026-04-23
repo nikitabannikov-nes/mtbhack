@@ -11,9 +11,6 @@ public interface BonusTemplateRepository extends JpaRepository<BonusTemplate, Lo
 
     List<BonusTemplate> findByCategoryIdAndRarity(Long categoryId, Rarity rarity);
 
-    @Query("SELECT bt FROM BonusTemplate bt WHERE bt.category.id IN :categoryIds AND bt.rarity = :rarity AND bt.bonusType NOT IN :excludedTypes")
-    List<BonusTemplate> findAvailable(List<Long> categoryIds, Rarity rarity, List<BonusType> excludedTypes);
-
-    @Query("SELECT bt FROM BonusTemplate bt WHERE bt.category.id IN :categoryIds AND bt.rarity = :rarity")
-    List<BonusTemplate> findByCategoryIdsAndRarity(List<Long> categoryIds, Rarity rarity);
+    @Query("SELECT bt FROM BonusTemplate bt WHERE bt.category.id = :categoryId AND bt.rarity = :rarity AND bt.bonusType NOT IN :excludedTypes")
+    List<BonusTemplate> findAvailable(Long categoryId, Rarity rarity, List<BonusType> excludedTypes);
 }

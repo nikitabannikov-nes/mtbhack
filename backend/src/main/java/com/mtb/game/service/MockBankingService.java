@@ -5,6 +5,7 @@ import com.mtb.game.domain.MockEventLog;
 import com.mtb.game.domain.User;
 import com.mtb.game.domain.UserProfile;
 import com.mtb.game.domain.enums.TaskEventType;
+import com.mtb.game.dto.response.ProfileResponse;
 import com.mtb.game.dto.response.MockEventResponse;
 import com.mtb.game.exception.ApiException;
 import com.mtb.game.repository.MockEventLogRepository;
@@ -24,6 +25,7 @@ public class MockBankingService {
     private final UserProfileRepository profileRepository;
     private final TaskService taskService;
     private final GameProperties gameProperties;
+    private final ProfileService profileService;
 
     @Transactional
     public MockEventResponse mockSpend(User user, BigDecimal amount) {
@@ -33,6 +35,7 @@ public class MockBankingService {
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> ApiException.notFound("Profile not found"));
         profile.setMonthlySpend(profile.getMonthlySpend().add(amount));
+        profileService.applyProgression(profile);
         profileRepository.save(profile);
 
         return buildResponse(user, "SPEND");
@@ -50,6 +53,19 @@ public class MockBankingService {
         checkAndIncrement(user, "LOGIN");
         taskService.trackEvent(user, TaskEventType.LOGIN);
         return buildResponse(user, "LOGIN");
+    }
+
+    @Transactional
+    public ProfileResponse mockReferral(User user, String referralCode) {
+        UserProfile referrerProfile = profileRepository.findByReferralCode(referralCode.trim().toUpperCase())
+                .orElseThrow(() -> ApiException.notFound("Referral code not found"));
+
+        if (referrerProfile.getUser().getId().equals(user.getId())) {
+            throw ApiException.badRequest("You cannot use your own referral code");
+        }
+
+        taskService.trackEvent(referrerProfile.getUser(), TaskEventType.REFERRAL_SIGNUP);
+        return profileService.getProfile(referrerProfile.getUser());
     }
 
     private void checkAndIncrement(User user, String eventType) {
