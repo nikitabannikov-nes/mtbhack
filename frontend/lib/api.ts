@@ -5,6 +5,7 @@ import type {
   CategoryId, GameItem, TaskType, TaskEventType,
 } from '@/types'
 import { LEVEL_SPEND_THRESHOLDS } from '@/lib/constants'
+import { useAuthStore } from '@/store/auth'
 
 type BackendProfile = {
   userId: number
@@ -159,10 +160,18 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
+    const tokenFromStore = useAuthStore.getState().token
+    if (tokenFromStore) {
+      config.headers.Authorization = `Bearer ${tokenFromStore}`
+      return config
+    }
+
     const raw = localStorage.getItem('auth-storage')
     if (raw) {
       const { state } = JSON.parse(raw) as { state: { token: string | null } }
-      if (state?.token) config.headers.Authorization = `Bearer ${state.token}`
+      if (state?.token) {
+        config.headers.Authorization = `Bearer ${state.token}`
+      }
     }
   }
   return config
@@ -172,8 +181,13 @@ http.interceptors.response.use(
   (r) => r,
   (err: AxiosError<ApiError>) => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('auth-storage')
-      window.location.href = '/login'
+      const url = err.config?.url ?? ''
+      const isAuthRequest = url.includes('/api/auth/login') || url.includes('/api/auth/register')
+      if (!isAuthRequest) {
+        useAuthStore.getState().logout()
+        localStorage.removeItem('auth-storage')
+        window.location.href = '/'
+      }
     }
     return Promise.reject(err)
   },
@@ -193,6 +207,29 @@ export const api = {
       }) satisfies AuthResponse),
     me: () =>
       http.get<BackendProfile>('/api/auth/me').then(r => mapProfile(r.data)),
+    ensureSession: async () => {
+      const credentials = {
+        email: 'demo@mtb.local',
+        password: 'demo123',
+        username: 'Demo Player',
+      }
+
+      try {
+        return await api.auth.login({
+          email: credentials.email,
+          password: credentials.password,
+        })
+      } catch {
+        try {
+          return await api.auth.register(credentials)
+        } catch {
+          return api.auth.login({
+            email: credentials.email,
+            password: credentials.password,
+          })
+        }
+      }
+    },
   },
 
   profile: {
