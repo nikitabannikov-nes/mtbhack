@@ -9,7 +9,7 @@ services:
       MYSQL_USER: mtb
       MYSQL_PASSWORD: mtb
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -34,7 +34,7 @@ services:
       DB_USER: mtb
       DB_PASSWORD: mtb
       JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-in-prod}
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
       SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8080:8080"
@@ -50,7 +50,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
 volumes:
   mysql_data:
