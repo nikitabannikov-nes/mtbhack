@@ -1,11 +1,8 @@
 package com.mtb.game.config;
 
-import com.mtb.game.domain.Category;
 import com.mtb.game.domain.User;
-import com.mtb.game.domain.UserCategory;
 import com.mtb.game.domain.UserProfile;
 import com.mtb.game.domain.enums.TaskEventType;
-import com.mtb.game.repository.CategoryRepository;
 import com.mtb.game.repository.UserCategoryRepository;
 import com.mtb.game.repository.UserProfileRepository;
 import com.mtb.game.repository.UserRepository;
@@ -31,7 +28,6 @@ public class DevDataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final UserProfileRepository profileRepository;
     private final UserCategoryRepository userCategoryRepository;
-    private final CategoryRepository categoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final TaskService taskService;
 
@@ -66,13 +62,8 @@ public class DevDataInitializer implements CommandLineRunner {
         }
         profileRepository.save(profile);
 
-        if (userCategoryRepository.findByUserId(user.getId()).isEmpty()) {
-            categoryRepository.findAllSorted().stream().findFirst().ifPresent(category ->
-                    userCategoryRepository.save(UserCategory.builder()
-                            .user(user)
-                            .category(category)
-                            .build())
-            );
+        if (profile.getCategoriesChangedAt() == null && !userCategoryRepository.findByUserId(user.getId()).isEmpty()) {
+            userCategoryRepository.deleteByUserId(user.getId());
         }
 
         taskService.trackEvent(user, TaskEventType.LOGIN);

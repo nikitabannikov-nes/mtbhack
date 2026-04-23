@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { RARITY_CONFIG, CATEGORY_CONFIG, BOARD_SIZE } from '@/lib/constants'
 import { daysLeft } from '@/lib/game-logic'
+import { getItemEmoji } from '@/lib/item-emojis'
 import { RarityBadge } from '@/components/ui/RarityBadge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Modal } from '@/components/ui/Modal'
@@ -25,8 +26,6 @@ export default function GamePage() {
   const [popIdx,   setPopIdx]   = useState<number | null>(null)
   const [shakeBtn, setShakeBtn] = useState(false)
   const [toasts,   setToasts]   = useState<{ id: string; text: string; type: string }[]>([])
-  const [selectedCategories, setSelectedCategories] = useState<CategoryId[]>(authUser?.selectedCategories ?? [])
-  const [level, setLevel] = useState(authUser?.level ?? 1)
 
   // drag state
   const [dragFrom, setDragFrom] = useState<number | null>(null)
@@ -66,8 +65,6 @@ export default function GamePage() {
     setEnergy(profileQuery.data.energy)
     setMaxEn(profileQuery.data.maxEnergy)
     setMtBalls(profileQuery.data.mtBalls)
-    setSelectedCategories(profileQuery.data.selectedCategories)
-    setLevel(profileQuery.data.level)
   }, [profileQuery.data])
 
   useEffect(() => {
@@ -225,9 +222,9 @@ export default function GamePage() {
     if (!cells[i] || cells[i]?.status === 'FROZEN') { e.preventDefault(); return }
     dragFromRef.current = i
     setDragFrom(i)
-    const ghost = document.createElement('img')
-    ghost.src = cells[i]!.iconPath
-    ghost.style.cssText = 'position:fixed;top:-999px;width:40px;height:40px;object-fit:contain'
+    const ghost = document.createElement('div')
+    ghost.textContent = getItemEmoji(cells[i]!.iconPath)
+    ghost.style.cssText = 'position:fixed;top:-999px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:32px;line-height:1'
     document.body.appendChild(ghost)
     e.dataTransfer.setDragImage(ghost, 20, 20)
     setTimeout(() => document.body.removeChild(ghost), 0)
@@ -299,6 +296,9 @@ export default function GamePage() {
   }
 
   /* ─── derived ───────────────────────────────────────────────── */
+  const profile = profileQuery.data ?? authUser
+  const selectedCategories = profile?.selectedCategories ?? []
+  const level = profile?.level ?? 1
   const emptyCount        = cells.filter(c => c === null).length
   const boardFull         = emptyCount === 0
   const categoriesNotSet  = selectedCategories.length < level
@@ -361,6 +361,7 @@ export default function GamePage() {
       <div className="grid grid-cols-5 gap-2">
         {cells.map((item, i) => {
           const cfg       = item ? RARITY_CONFIG[item.rarity] : null
+          const itemEmoji = item ? getItemEmoji(item.iconPath) : null
           const isNew     = popIdx === i
           const frozen    = item?.status === 'FROZEN'
           const isDragged = dragFrom === i
@@ -398,11 +399,9 @@ export default function GamePage() {
             >
               {item ? (
                 <>
-                  <img
-                    src={item.iconPath}
-                    alt={item.name}
-                    className="w-8 h-8 object-contain pointer-events-none mb-0.5"
-                  />
+                  <span className="text-[30px] leading-none pointer-events-none mb-0.5" aria-hidden="true">
+                    {itemEmoji}
+                  </span>
                   <RarityBadge rarity={item.rarity} />
 
                   {frozen && (
@@ -494,6 +493,7 @@ function ItemModal({
 }) {
   const cfg    = RARITY_CONFIG[item.rarity]
   const catCfg = CATEGORY_CONFIG[item.category]
+  const itemEmoji = getItemEmoji(item.iconPath)
   const frozen = item.status === 'FROZEN'
   const days   = item.expiresAt ? daysLeft(item.expiresAt) : null
 
@@ -506,7 +506,7 @@ function ItemModal({
         className="w-20 h-20 rounded-3xl flex items-center justify-center mb-3 shadow-inner"
         style={{ background: cfg.bg, boxShadow: `0 0 24px ${cfg.glow}` }}
       >
-        <img src={item.iconPath} alt={item.name} className="w-12 h-12 object-contain" />
+        <span className="text-5xl leading-none" aria-hidden="true">{itemEmoji}</span>
       </div>
 
       {/* Rarity badge */}

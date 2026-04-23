@@ -42,8 +42,10 @@ export default function CategoriesPage() {
     mutationFn: (ids: CategoryId[]) => api.profile.setCategories(ids),
     onSuccess: (updated) => {
       setUser(updated)
+      qc.setQueryData(['profile'], updated)
       addToast('✅ Категории сохранены', 'success')
       qc.invalidateQueries({ queryKey: ['board'] })
+      qc.invalidateQueries({ queryKey: ['profile'] })
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
