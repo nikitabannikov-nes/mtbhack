@@ -13,31 +13,25 @@ const TABS = [
 ] as const
 
 function TabIcon({
-  icon,
-  active,
-}: {
-  icon: (typeof TABS)[number]['icon']
-  active: boolean
+                     icon,
+                     active,
+                 }: {
+    icon: (typeof TABS)[number]['icon']
+    active: boolean
 }) {
-  if (icon === 'profile') {
-    return (
-      <img
-        src="/icons/nav/profile.svg"
-        alt=""
-        aria-hidden="true"
-        className={active ? 'h-7 w-6' : 'h-6 w-5 opacity-70'}
-      />
-    )
-  }
+    const sizeClass =
+        icon === 'game'
+            ? active ? 'h-7 w-7' : 'h-6 w-6'
+            : active ? 'h-7 w-6' : 'h-6 w-5'
 
-  return (
-    <img
-      src={`/icons/nav/${icon}.svg`}
-      alt=""
-      aria-hidden="true"
-      className={active ? 'h-6 w-7' : 'h-5 w-6 opacity-70'}
-    />
-  )
+    return (
+        <img
+            src={`/icons/nav/${icon}.svg`}
+            alt=""
+            aria-hidden="true"
+            className={active ? sizeClass : `${sizeClass} opacity-70`}
+        />
+    )
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

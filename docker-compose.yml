@@ -34,7 +34,7 @@ services:
       DB_USER: mtb
       DB_PASSWORD: mtb
       JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-in-prod}
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      CORS_ORIGINS: http://172.20.10.5:3000,http://172.20.10.5:3001
       SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8080:8080"
@@ -48,7 +48,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://172.20.10.5:8080
     ports:
       - "3001:3000"
 
