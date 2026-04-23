@@ -43,23 +43,25 @@ public class DevDataInitializer implements CommandLineRunner {
                 .orElseGet(() -> profileRepository.save(UserProfile.builder()
                         .user(user)
                         .username(DEMO_USERNAME)
-                        .energy(new BigDecimal("7.0"))
-                        .monthlySpend(new BigDecimal("500.00"))
+                        .energy(new BigDecimal("20.0"))
+                        .maxEnergy(20)
+                        .playerLevel(2)
+                        .monthlySpend(new BigDecimal("700.00"))
                         .referralCode(UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                         .build()));
 
         if (profile.getUsername() == null || profile.getUsername().isBlank()) {
             profile.setUsername(DEMO_USERNAME);
         }
-        if (profile.getEnergy() == null) {
-            profile.setEnergy(new BigDecimal("7.0"));
+        if (profile.getEnergy() == null || profile.getEnergy().compareTo(new BigDecimal("20.0")) < 0) {
+            profile.setEnergy(new BigDecimal("20.0"));
         }
+        profile.setMaxEnergy(20);
+        profile.setPlayerLevel(2);
         if (profile.getReferralCode() == null || profile.getReferralCode().isBlank()) {
             profile.setReferralCode(UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         }
-        if (profile.getMonthlySpend() == null || profile.getMonthlySpend().compareTo(new BigDecimal("500")) < 0) {
-            profile.setMonthlySpend(new BigDecimal("500.00"));
-        }
+        profile.setMonthlySpend(new BigDecimal("700.00"));
         profileRepository.save(profile);
 
         if (profile.getCategoriesChangedAt() == null && !userCategoryRepository.findByUserId(user.getId()).isEmpty()) {

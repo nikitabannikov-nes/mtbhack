@@ -130,7 +130,7 @@ public class ProfileService {
             maxEnergy = 12;
         } else if (spend.compareTo(new BigDecimal("500")) >= 0) {
             level = 2;
-            maxEnergy = 10;
+            maxEnergy = 20;
         } else {
             level = 1;
             maxEnergy = 7;

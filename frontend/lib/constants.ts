@@ -70,7 +70,7 @@ export const CATEGORY_CONFIG: Record<CategoryId, {
 
 export const ENERGY_MAX_BY_LEVEL: Record<number, number> = {
   1: 7,
-  2: 10,
+  2: 20,
   3: 12,
   4: 15,
 }

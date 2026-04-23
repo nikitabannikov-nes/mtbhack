@@ -353,7 +353,7 @@ export default function GamePage() {
   ], [daily, weekly, referral])
 
   return (
-    <div className="flex flex-col gap-3 p-3 pb-4 touch-none select-none">
+    <div className="flex flex-col gap-3 p-3 pb-4">
 
       {/* ── Header card ─────────────────────────────────────────── */}
       <div
@@ -431,7 +431,7 @@ export default function GamePage() {
       </p>
 
       {/* ── 5×5 grid ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-5 gap-2 touch-none select-none">
         {cells.map((item, i) => {
           const cfg       = item ? RARITY_CONFIG[item.rarity] : null
           const itemEmoji = item ? getItemEmoji(item.iconPath) : null
