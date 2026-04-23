@@ -49,9 +49,22 @@ export default function TasksPage() {
   const claimMutation = useMutation({
     mutationFn: (taskId: string) => api.tasks.claim(taskId),
     onSuccess: async (result) => {
+      qc.setQueryData(['profile'], (current: Awaited<ReturnType<typeof api.profile.get>> | undefined) => {
+        if (!current) return current
+        const next = { ...current, energy: result.energyLeft }
+        setUser(next)
+        return next
+      })
+
+      qc.setQueryData(['board'], (current: Awaited<ReturnType<typeof api.game.board>> | undefined) => {
+        if (!current) return current
+        return { ...current, energy: result.energyLeft }
+      })
+
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['tasks'] }),
         qc.invalidateQueries({ queryKey: ['profile'] }),
+        qc.invalidateQueries({ queryKey: ['board'] }),
       ])
       showToast(`+${result.energyGranted} ⚡ получено!`)
     },

@@ -1,75 +1,40 @@
 {
   "pages": {
-    "/_not-found/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/app/_not-found/page-5fbf227a15c1a3fc.js"
-    ],
     "/layout": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/css/7722627af3054cbe.css",
-      "static/chunks/832-f84460f4fcd5e704.js",
-      "static/chunks/app/layout-1c1921b8c29c683e.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/app/page-ffc06cd4473239c6.js"
-    ],
-    "/(app)/profile/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/308-138f57a21a86cb38.js",
-      "static/chunks/832-f84460f4fcd5e704.js",
-      "static/chunks/872-fee76046213f5da9.js",
-      "static/chunks/app/(app)/profile/page-276ab8cf0307ee68.js"
-    ],
-    "/(app)/layout": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/308-138f57a21a86cb38.js",
-      "static/chunks/app/(app)/layout-da326a86cf1ec602.js"
-    ],
-    "/(app)/tasks/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/308-138f57a21a86cb38.js",
-      "static/chunks/832-f84460f4fcd5e704.js",
-      "static/chunks/872-fee76046213f5da9.js",
-      "static/chunks/app/(app)/tasks/page-dc74d5ea3db96e46.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
     ],
     "/(app)/game/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/308-138f57a21a86cb38.js",
-      "static/chunks/832-f84460f4fcd5e704.js",
-      "static/chunks/872-fee76046213f5da9.js",
-      "static/chunks/app/(app)/game/page-eca74742efec9189.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/game/page.js"
+    ],
+    "/(app)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/layout.js"
     ],
     "/(app)/categories/page": [
-      "static/chunks/webpack-7295ab52a90dbdce.js",
-      "static/chunks/fd9d1056-e53057823608e7cf.js",
-      "static/chunks/23-91d822188c30abce.js",
-      "static/chunks/main-app-dd42cc9441ba49ae.js",
-      "static/chunks/308-138f57a21a86cb38.js",
-      "static/chunks/832-f84460f4fcd5e704.js",
-      "static/chunks/872-fee76046213f5da9.js",
-      "static/chunks/app/(app)/categories/page-baa8a995ee11b0bd.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/categories/page.js"
+    ],
+    "/(app)/tasks/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/tasks/page.js"
+    ],
+    "/(app)/profile/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/profile/page.js"
+    ],
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
     ]
   }
 }

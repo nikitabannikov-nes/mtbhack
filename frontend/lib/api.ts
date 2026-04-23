@@ -158,6 +158,8 @@ const http = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 http.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const tokenFromStore = useAuthStore.getState().token
@@ -180,10 +182,19 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (r) => r,
   (err: AxiosError<ApiError>) => {
-    if (err.response?.status === 401 && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       const url = err.config?.url ?? ''
       const isAuthRequest = url.includes('/api/auth/login') || url.includes('/api/auth/register')
-      if (!isAuthRequest) {
+      const isSessionRecoveryCandidate =
+        err.response?.status === 401 ||
+        (err.response?.status === 404 && (
+          url.includes('/api/profile') ||
+          url.includes('/api/auth/me') ||
+          url.includes('/api/game/board') ||
+          url.includes('/api/tasks')
+        ))
+
+      if (isSessionRecoveryCandidate && !isAuthRequest) {
         useAuthStore.getState().logout()
         localStorage.removeItem('auth-storage')
         window.location.href = '/'
@@ -214,21 +225,27 @@ export const api = {
         username: 'Demo Player',
       }
 
-      try {
-        return await api.auth.login({
-          email: credentials.email,
-          password: credentials.password,
-        })
-      } catch {
+      let lastError: unknown = null
+
+      for (let attempt = 0; attempt < 12; attempt += 1) {
         try {
-          return await api.auth.register(credentials)
-        } catch {
-          return api.auth.login({
+          return await api.auth.login({
             email: credentials.email,
             password: credentials.password,
           })
+        } catch (loginError) {
+          lastError = loginError
+          try {
+            return await api.auth.register(credentials)
+          } catch (registerError) {
+            lastError = registerError
+          }
         }
+
+        await sleep(1000)
       }
+
+      throw lastError
     },
   },
 

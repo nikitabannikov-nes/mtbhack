@@ -1,6 +1,7 @@
 'use client'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { ToastContainer } from '@/components/ui/Toast'
 import { api } from '@/lib/api'
@@ -15,27 +16,51 @@ const TABS = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router   = useRouter()
+  const queryClient = useQueryClient()
   const token    = useAuthStore((s) => s.token)
   const setAuth  = useAuthStore((s) => s.setAuth)
+  const setUser  = useAuthStore((s) => s.setUser)
+  const logout   = useAuthStore((s) => s.logout)
   const [isBootstrapping, setIsBootstrapping] = useState(!token)
 
   useEffect(() => {
     let cancelled = false
 
     async function bootstrap() {
-      if (token) {
-        setIsBootstrapping(false)
-        return
-      }
-
       setIsBootstrapping(true)
+
       try {
+        if (token) {
+          const profile = await api.auth.me()
+          if (!cancelled) {
+            setUser(profile)
+            queryClient.clear()
+            setIsBootstrapping(false)
+          }
+          return
+        }
+
         const session = await api.auth.ensureSession()
-        if (!cancelled) setAuth(session.token, session.user)
-      } catch (error) {
         if (!cancelled) {
+          setAuth(session.token, session.user)
+          queryClient.clear()
           setIsBootstrapping(false)
-          console.error('Failed to bootstrap session', error)
+        }
+      } catch (error) {
+        try {
+          const session = await api.auth.ensureSession()
+          if (!cancelled) {
+            setAuth(session.token, session.user)
+            queryClient.clear()
+            setIsBootstrapping(false)
+          }
+        } catch (sessionError) {
+          if (!cancelled) {
+            logout()
+            queryClient.clear()
+            setIsBootstrapping(false)
+            console.error('Failed to bootstrap session', sessionError ?? error)
+          }
         }
       }
     }
@@ -45,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [token, setAuth])
+  }, [token, setAuth, setUser, logout, queryClient])
 
   useEffect(() => {
     if (token && pathname === '/') router.replace('/game')

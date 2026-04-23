@@ -37,11 +37,6 @@ export default function GamePage() {
     queryFn: async () => {
       const profile = await api.profile.get()
       setUser(profile)
-      setEnergy(profile.energy)
-      setMaxEn(profile.maxEnergy)
-      setMtBalls(profile.mtBalls)
-      setSelectedCategories(profile.selectedCategories)
-      setLevel(profile.level)
       return profile
     },
   })
@@ -49,11 +44,7 @@ export default function GamePage() {
   const boardQuery = useQuery({
     queryKey: ['board'],
     queryFn: async () => {
-      const board = await api.game.board()
-      setCells(board.cells)
-      setEnergy(board.energy ?? 0)
-      setMaxEn(board.maxEnergy ?? 7)
-      return board
+      return api.game.board()
     },
   })
 
@@ -67,6 +58,22 @@ export default function GamePage() {
       setMtBalls(balanceQuery.data.balance)
     }
   }, [balanceQuery.data])
+
+  useEffect(() => {
+    if (!profileQuery.data) return
+    setEnergy(profileQuery.data.energy)
+    setMaxEn(profileQuery.data.maxEnergy)
+    setMtBalls(profileQuery.data.mtBalls)
+    setSelectedCategories(profileQuery.data.selectedCategories)
+    setLevel(profileQuery.data.level)
+  }, [profileQuery.data])
+
+  useEffect(() => {
+    if (!boardQuery.data) return
+    setCells(boardQuery.data.cells)
+    if (typeof boardQuery.data.energy === 'number') setEnergy(boardQuery.data.energy)
+    if (typeof boardQuery.data.maxEnergy === 'number') setMaxEn(boardQuery.data.maxEnergy)
+  }, [boardQuery.data])
 
   /* ─── toast helper ──────────────────────────────────────────── */
   function toast(text: string, type = 'info') {
