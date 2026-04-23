@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
@@ -11,6 +12,7 @@ import { Modal } from '@/components/ui/Modal'
 import type { GameItem, CategoryId } from '@/types'
 
 export default function GamePage() {
+  const router  = useRouter()
   const qc = useQueryClient()
   const setUser = useAuthStore((s) => s.setUser)
   const authUser = useAuthStore((s) => s.user)
@@ -145,6 +147,11 @@ export default function GamePage() {
 
   /* ─── game actions ──────────────────────────────────────────── */
   function handleCreate() {
+    if (selectedCategories.length < level) {
+      toast('Выбери все категории перед созданием предмета', 'error')
+      router.push('/categories')
+      return
+    }
     if (energy < 1) { setShakeBtn(true); setTimeout(() => setShakeBtn(false), 500); return }
     const emptySlots = cells.map((c, i) => c === null ? i : -1).filter(i => i !== -1)
     if (!emptySlots.length) return
@@ -292,8 +299,9 @@ export default function GamePage() {
   }
 
   /* ─── derived ───────────────────────────────────────────────── */
-  const emptyCount = cells.filter(c => c === null).length
-  const boardFull  = emptyCount === 0
+  const emptyCount        = cells.filter(c => c === null).length
+  const boardFull         = emptyCount === 0
+  const categoriesNotSet  = selectedCategories.length < level
 
   return (
     <div className="flex flex-col gap-3 p-3 pb-4 touch-none select-none">
@@ -419,14 +427,16 @@ export default function GamePage() {
         onClick={handleCreate}
         className={[
           'w-full py-4 rounded-2xl text-base font-black transition-all shadow-md',
-          energy >= 1 && !boardFull
+          !categoriesNotSet && energy >= 1 && !boardFull
             ? 'bg-gradient-to-r from-brand-700 to-brand-500 text-white shadow-brand-500/30 active:scale-95'
             : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none',
           shakeBtn ? 'animate-shake' : '',
         ].join(' ')}
         disabled={createMutation.isPending}
       >
-        {boardFull
+        {categoriesNotSet
+          ? '🏷️ Выбери категории — перейти'
+          : boardFull
           ? '🚫 Доска заполнена — освободи клетку'
           : energy < 1
           ? '⚡ Нет энергии — выполни задание'

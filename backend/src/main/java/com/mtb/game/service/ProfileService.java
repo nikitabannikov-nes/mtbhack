@@ -61,8 +61,12 @@ public class ProfileService {
             throw ApiException.badRequest("Duplicate categories are not allowed");
         }
 
-        if (uniqueCategorySlugs.size() > profile.getPlayerLevel()) {
-            throw ApiException.unprocessable("CATEGORY_LIMIT_EXCEEDED", "Too many categories for current level");
+        int expectedCategoryCount = profile.getPlayerLevel();
+        if (uniqueCategorySlugs.size() != expectedCategoryCount) {
+            throw ApiException.unprocessable(
+                    "CATEGORY_COUNT_INVALID",
+                    "Exactly " + expectedCategoryCount + " categories must be selected for current level"
+            );
         }
 
         List<String> poolSlugs = getPoolSlugs(profile);

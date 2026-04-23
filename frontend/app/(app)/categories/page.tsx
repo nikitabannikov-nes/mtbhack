@@ -15,7 +15,7 @@ export default function CategoriesPage() {
   const user     = useAuthStore(s => s.user)
   const addToast = useGameStore(s => s.addToast)
 
-  const [selected, setSelected] = useState<CategoryId[]>(user?.selectedCategories ?? [])
+  const [selected, setSelected] = useState<CategoryId[]>([])
 
   const slots      = user?.level ?? 1
   const maxEnergy  = ENERGY_MAX_BY_LEVEL[user?.level ?? 1]
@@ -178,13 +178,17 @@ export default function CategoriesPage() {
       </div>
 
       {/* Save button */}
-      {changed && !isLocked && (
+      {!isLocked && (
         <button
           onClick={() => saveMutation.mutate(selected)}
-          disabled={saveMutation.isPending || selected.length === 0}
-          className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-brand-700 to-brand-500 shadow-lg active:scale-95 transition-transform disabled:opacity-50"
+          disabled={saveMutation.isPending || !changed || selected.length < slots}
+          className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-brand-700 to-brand-500 shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saveMutation.isPending ? 'Сохраняем...' : 'Сохранить категории'}
+          {saveMutation.isPending
+            ? 'Сохраняем...'
+            : selected.length < slots
+            ? `Выбери ещё ${slots - selected.length} ${slots - selected.length === 1 ? 'категорию' : 'категории'}`
+            : 'Сохранить категории'}
         </button>
       )}
     </div>
