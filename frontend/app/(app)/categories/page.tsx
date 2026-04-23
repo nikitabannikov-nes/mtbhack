@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useGameStore } from '@/store/game'
 import { CATEGORY_CONFIG, ENERGY_MAX_BY_LEVEL } from '@/lib/constants'
+import { EnergyIcon } from '@/components/ui/EnergyIcon'
 import type { CategoryId } from '@/types'
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG) as CategoryId[]
@@ -15,7 +16,10 @@ export default function CategoriesPage() {
   const user     = useAuthStore(s => s.user)
   const addToast = useGameStore(s => s.addToast)
 
-  const [selected, setSelected] = useState<CategoryId[]>([])
+  // Initialize from Zustand store so revisiting the page shows the saved state
+  // even when React Query serves from cache (queryFn wouldn't re-run).
+  const [selected, setSelected] = useState<CategoryId[]>(user?.selectedCategories ?? [])
+  const syncedRef = useRef(false)
 
   const slots      = user?.level ?? 1
   const maxEnergy  = ENERGY_MAX_BY_LEVEL[user?.level ?? 1]
@@ -28,15 +32,23 @@ export default function CategoriesPage() {
     ? new Date(user.categoriesLockedUntil).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
     : null
 
-  useQuery({
+  const profileQuery = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
       const p = await api.profile.get()
       setUser(p)
-      setSelected(p.selectedCategories)
       return p
     },
   })
+
+  // Sync selected once from profile data (handles both cached and fresh-fetch cases).
+  // Using a ref so user's in-progress changes aren't overridden by background refetches.
+  useEffect(() => {
+    if (!syncedRef.current && profileQuery.data) {
+      setSelected(profileQuery.data.selectedCategories)
+      syncedRef.current = true
+    }
+  }, [profileQuery.data])
 
   const saveMutation = useMutation({
     mutationFn: (ids: CategoryId[]) => api.profile.setCategories(ids),
@@ -67,49 +79,53 @@ export default function CategoriesPage() {
   }
 
   const changed = !isLocked && JSON.stringify(selected.slice().sort()) !== JSON.stringify((user?.selectedCategories ?? []).slice().sort())
+  const missingCount = Math.max(0, slots - selected.length)
+  const canSave = !isLocked && !saveMutation.isPending && changed && selected.length >= slots
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="pt-2">
-        <h1 className="text-2xl font-black text-gray-900">Категории</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Уровень {slots} — доступно {slots} {slots === 1 ? 'категория' : 'категории'} из 6 на этот месяц
-        </p>
-      </div>
+    <div className="w-full bg-[#F3F5FB] px-4 pb-6 pt-4">
+      <section className="rounded-[30px] bg-gradient-to-br from-[#001C92] via-[#0039D0] to-[#245DFF] px-5 pt-4 pb-5 text-white shadow-[0_16px_32px_rgba(22,58,189,0.18)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[28px] font-black leading-none tracking-[-0.03em]">Категории</h1>
+            <p className="mt-2 text-[13px] font-medium text-white/80">
+              Выбери {slots} {slots === 1 ? 'категорию' : 'категории'}
+            </p>
+          </div>
+          <div className="rounded-full border border-white/15 bg-white/18 px-3 py-1 text-[12px] font-extrabold tracking-[-0.02em]">
+            Ур.{slots}
+          </div>
+        </div>
 
-      {/* Level info */}
-      <div className="bg-gradient-to-r from-brand-700 to-brand-500 rounded-2xl p-4 text-white flex items-center gap-3">
-        <div className="text-3xl">🏆</div>
-        <div>
-          <p className="font-black text-base">Уровень {slots}</p>
-          <p className="text-xs text-blue-200 mt-0.5">
-            Трать больше для повышения · Макс. ⚡ {maxEnergy}
+        <div className="mt-4">
+          <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/70">
+            <span>Прогресс выбора</span>
+            <span>{selected.length} / {slots}</span>
+          </div>
+          <div className="h-4 rounded-full bg-white/28 p-[3px] shadow-inner">
+            <div
+              className="h-full rounded-full bg-[#4E89FF] transition-all"
+              style={{ width: `${Math.max(12, (selected.length / slots) * 100)}%` }}
+            />
+          </div>
+          <p className="mt-2 flex items-center justify-center gap-1 text-[11px] font-medium text-white/[0.68]">
+            Макс. энергия {maxEnergy}
+            <EnergyIcon className="h-2.5 w-2.5 opacity-70" />
           </p>
         </div>
-      </div>
+      </section>
 
-      {/* Monthly lock banner */}
-      {isLocked && (
-        <div className="rounded-2xl p-4 bg-amber-50 border border-amber-200 flex items-start gap-3">
-          <span className="text-2xl">🔒</span>
-          <div>
-            <p className="font-black text-sm text-amber-800">Категории уже изменены в этом месяце</p>
-            <p className="text-xs text-amber-600 mt-0.5">
+      <div className="flex flex-col gap-4 pt-4">
+        {isLocked && (
+          <div className="rounded-[24px] border border-[#FFE0A6] bg-[#FFF6E5] px-4 py-3 text-[#A06000] shadow-[0_12px_24px_rgba(245,183,67,0.16)]">
+            <p className="text-[13px] font-extrabold">Категории уже сохранены</p>
+            <p className="mt-1 text-[12px] font-medium text-[#C08114]">
               Следующее изменение доступно с {lockedUntilLabel}
             </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Pool info */}
-      <div className="rounded-2xl p-3 bg-blue-50 border border-blue-100">
-        <p className="text-xs text-blue-600 font-semibold">
-          🎲 Твои 6 категорий на этот месяц — выбери {slots} {slots === 1 ? 'из них' : 'из них'}
-        </p>
-      </div>
-
-      {/* Grid — only pool categories */}
-      <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
         {pool.map(id => {
           const cat        = CATEGORY_CONFIG[id]
           const isSelected = selected.includes(id)
@@ -120,79 +136,108 @@ export default function CategoriesPage() {
               key={id}
               onClick={() => toggle(id)}
               disabled={locked}
-              className={`
-                relative text-left rounded-2xl p-4 flex flex-col gap-2 transition-all
-                ${isSelected
-                  ? 'shadow-md'
-                  : locked
-                  ? 'bg-white opacity-40'
-                  : 'bg-white shadow-sm active:scale-95'}
-              `}
-              style={isSelected ? {
-                background: cat.color + '12',
-                border: `2px solid ${cat.color}40`,
-                boxShadow: `0 4px 14px ${cat.color}25`,
-              } : { border: '2px solid transparent' }}
+              className={[
+                'relative min-h-[90px] rounded-[20px] bg-white px-3.5 py-3 text-left transition-all duration-150',
+                'shadow-[0_12px_28px_rgba(51,71,133,0.08)]',
+                isSelected
+                  ? 'border-2 border-[#7D95FF] bg-[#FAFBFF]'
+                  : 'border border-[#EEF2FF]',
+                locked ? 'opacity-45' : 'active:scale-[0.98]',
+              ].join(' ')}
             >
               {isSelected && (
                 <div
-                  className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-                  style={{ background: cat.color }}
+                  className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#E9EEFF]"
                 >
-                  <span className="text-white text-[10px] font-black">✓</span>
+                  <span className="text-[11px] font-black text-[#5073FF]">✓</span>
                 </div>
               )}
-              <span className="text-3xl">{cat.icon}</span>
-              <div>
-                <p className="font-black text-sm text-gray-900">{cat.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{cat.desc}</p>
+
+              <div className="flex h-full items-start gap-3">
+                <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F4F7FF]">
+                  <img
+                    src={`/icons/categories/${id}.svg`}
+                    alt=""
+                    className="h-7 w-7 object-contain"
+                    aria-hidden="true"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[14px] font-extrabold leading-[1.15] tracking-[-0.02em] text-[#202C52]">
+                    {cat.name}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium leading-[1.2] text-[#9AA6C8]">
+                    {cat.desc}
+                  </p>
+                </div>
               </div>
             </button>
           )
         })}
-      </div>
+        </div>
 
-      {/* Status bar */}
-      <div
-        className={`rounded-2xl p-4 ${
-          selected.length >= slots ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'
-        }`}
-      >
-        <p className={`font-bold text-sm ${selected.length >= slots ? 'text-green-700' : 'text-brand-700'}`}>
-          {selected.length >= slots ? '✅ Все слоты заполнены!' : `Выбрано ${selected.length} из ${slots}`}
-        </p>
-        {selected.length > 0 && (
-          <div className="flex gap-2 flex-wrap mt-2">
-            {selected.map(id => {
-              const cat = CATEGORY_CONFIG[id]
-              return (
-                <span
-                  key={id}
-                  className="text-xs font-bold px-2.5 py-1 rounded-full"
-                  style={{ background: cat.color + '20', color: cat.color }}
-                >
-                  {cat.icon} {cat.name}
-                </span>
-              )
-            })}
+        <div className="rounded-[28px] bg-white px-4 py-4 shadow-[0_18px_40px_rgba(51,71,133,0.12)]">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF3FF]">
+              <span className="text-[15px] font-black text-[#5073FF]">{selected.length >= slots ? '✓' : '•'}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] font-extrabold leading-tight text-[#202C52]">
+                {selected.length >= slots
+                  ? 'Категории готовы к сохранению'
+                  : `Нужно выбрать ещё ${missingCount} ${missingCount === 1 ? 'категорию' : 'категории'}`}
+              </p>
+              <p className="mt-1 text-[12px] font-medium leading-[1.35] text-[#9AA6C8]">
+                {isLocked
+                  ? 'Набор категорий уже зафиксирован на этот месяц.'
+                  : 'Функционал выбора остаётся прежним: можно менять отметки до сохранения.'}
+              </p>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Save button */}
-      {!isLocked && (
-        <button
-          onClick={() => saveMutation.mutate(selected)}
-          disabled={saveMutation.isPending || !changed || selected.length < slots}
-          className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-brand-700 to-brand-500 shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saveMutation.isPending
-            ? 'Сохраняем...'
-            : selected.length < slots
-            ? `Выбери ещё ${slots - selected.length} ${slots - selected.length === 1 ? 'категорию' : 'категории'}`
-            : 'Сохранить категории'}
-        </button>
-      )}
+          {selected.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selected.map(id => {
+                const cat = CATEGORY_CONFIG[id]
+                return (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#F4F7FF] px-3 py-1.5 text-[11px] font-bold text-[#4F65B5]"
+                  >
+                    <img
+                      src={`/icons/categories/${id}.svg`}
+                      alt=""
+                      className="h-4 w-4 object-contain"
+                      aria-hidden="true"
+                    />
+                    <span>{cat.name}</span>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+
+          {!isLocked && (
+            <button
+              onClick={() => saveMutation.mutate(selected)}
+              disabled={!canSave}
+              className={[
+                'mt-4 w-full rounded-[18px] py-3.5 text-[15px] font-extrabold tracking-[-0.02em] transition-all',
+                canSave
+                  ? 'bg-[#1737FF] text-white shadow-[0_14px_24px_rgba(23,55,255,0.28)] active:scale-[0.99]'
+                  : 'bg-[#EAF0FF] text-[#8EA1D7] disabled:cursor-not-allowed',
+              ].join(' ')}
+            >
+              {saveMutation.isPending
+                ? 'Сохраняем...'
+                : missingCount > 0
+                ? `Выбери ещё ${missingCount}`
+                : 'Сохранить категории'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

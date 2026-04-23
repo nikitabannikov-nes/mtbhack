@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -10,11 +10,18 @@ import { getItemEmoji } from '@/lib/item-emojis'
 import { RarityBadge } from '@/components/ui/RarityBadge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Modal } from '@/components/ui/Modal'
-import type { GameItem, CategoryId } from '@/types'
+import { EnergyIcon } from '@/components/ui/EnergyIcon'
+import type { GameItem, CategoryId, Task } from '@/types'
+
+const GROUP_META = {
+  DAILY:    { title: '☀️ Ежедневные',   badge: 'Сбрасываются в полночь', badgeColor: 'bg-amber-100 text-amber-700'   },
+  WEEKLY:   { title: '📅 Еженедельные', badge: 'Сбрасываются в пн',      badgeColor: 'bg-blue-100 text-blue-700'    },
+  REFERRAL: { title: '👥 Реферальные',  badge: 'Разовые',                badgeColor: 'bg-purple-100 text-purple-700' },
+}
 
 export default function GamePage() {
   const router  = useRouter()
-  const qc = useQueryClient()
+  const qc      = useQueryClient()
   const setUser = useAuthStore((s) => s.setUser)
   const authUser = useAuthStore((s) => s.user)
 
@@ -33,6 +40,7 @@ export default function GamePage() {
   const dragFromRef             = useRef<number | null>(null)
   const cellRefs                = useRef<(HTMLDivElement | null)[]>(Array(BOARD_SIZE).fill(null))
 
+  /* ─── queries ────────────────────────────────────────────────── */
   const profileQuery = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
@@ -44,9 +52,7 @@ export default function GamePage() {
 
   const boardQuery = useQuery({
     queryKey: ['board'],
-    queryFn: async () => {
-      return api.game.board()
-    },
+    queryFn: async () => api.game.board(),
   })
 
   const balanceQuery = useQuery({
@@ -54,10 +60,13 @@ export default function GamePage() {
     queryFn: api.mtballs.balance,
   })
 
+  const dailyQuery   = useQuery({ queryKey: ['tasks', 'DAILY'],    queryFn: api.tasks.daily   })
+  const weeklyQuery  = useQuery({ queryKey: ['tasks', 'WEEKLY'],   queryFn: api.tasks.weekly  })
+  const referralQuery = useQuery({ queryKey: ['tasks', 'REFERRAL'], queryFn: api.tasks.referral })
+
+  /* ─── sync server state ─────────────────────────────────────── */
   useEffect(() => {
-    if (typeof balanceQuery.data?.balance === 'number') {
-      setMtBalls(balanceQuery.data.balance)
-    }
+    if (typeof balanceQuery.data?.balance === 'number') setMtBalls(balanceQuery.data.balance)
   }, [balanceQuery.data])
 
   useEffect(() => {
@@ -95,6 +104,7 @@ export default function GamePage() {
     ])
   }
 
+  /* ─── game mutations ────────────────────────────────────────── */
   const createMutation = useMutation({
     mutationFn: (boardPosition: number) => api.game.createItem(boardPosition),
     onSuccess: async (result) => {
@@ -142,6 +152,30 @@ export default function GamePage() {
     onError: () => toast('Не удалось удалить предмет', 'error'),
   })
 
+  /* ─── task mutation ─────────────────────────────────────────── */
+  const claimMutation = useMutation({
+    mutationFn: (taskId: string) => api.tasks.claim(taskId),
+    onSuccess: async (result) => {
+      qc.setQueryData(
+        ['profile'],
+        (current: Awaited<ReturnType<typeof api.profile.get>> | undefined) => {
+          if (!current) return current
+          const next = { ...current, energy: result.energyLeft }
+          setUser(next)
+          return next
+        },
+      )
+      setEnergy(result.energyLeft)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+        qc.invalidateQueries({ queryKey: ['board'] }),
+      ])
+      toast(`+${result.energyGranted} ⚡ получено!`, 'success')
+    },
+    onError: () => toast('Не удалось забрать награду', 'error'),
+  })
+
   /* ─── game actions ──────────────────────────────────────────── */
   function handleCreate() {
     if (selectedCategories.length < level) {
@@ -152,7 +186,7 @@ export default function GamePage() {
     if (energy < 1) { setShakeBtn(true); setTimeout(() => setShakeBtn(false), 500); return }
     const emptySlots = cells.map((c, i) => c === null ? i : -1).filter(i => i !== -1)
     if (!emptySlots.length) return
-    const pos  = emptySlots[Math.floor(Math.random() * emptySlots.length)]
+    const pos = emptySlots[Math.floor(Math.random() * emptySlots.length)]
     createMutation.mutate(pos)
   }
 
@@ -211,6 +245,11 @@ export default function GamePage() {
     await refreshCoreData()
   }
 
+  function claimTask(task: Task) {
+    if (!task.completed || task.claimed || claimMutation.isPending) return
+    claimMutation.mutate(task.id)
+  }
+
   /* ─── drag & drop helpers ───────────────────────────────────── */
   function canMergeCells(a: GameItem | null, b: GameItem | null) {
     return !!a && !!b && a.rarity === b.rarity && a.category === b.category
@@ -252,7 +291,7 @@ export default function GamePage() {
   const touchMoved     = useRef(false)
 
   function getCellAtPoint(x: number, y: number): number | null {
-    const el = document.elementFromPoint(x, y)
+    const el   = document.elementFromPoint(x, y)
     const cell = el?.closest('[data-cell]')
     return cell ? parseInt(cell.getAttribute('data-cell') ?? '-1') : null
   }
@@ -268,20 +307,20 @@ export default function GamePage() {
   function onTouchMove(e: React.TouchEvent) {
     e.preventDefault()
     touchMoved.current = true
-    const t = e.touches[0]
+    const t   = e.touches[0]
     const idx = getCellAtPoint(t.clientX, t.clientY)
     setOverIdx(idx)
   }
 
   function onTouchEnd(e: React.TouchEvent) {
-    const t = e.changedTouches[0]
-    const toIdx   = getCellAtPoint(t.clientX, t.clientY)
+    const t      = e.changedTouches[0]
+    const toIdx  = getCellAtPoint(t.clientX, t.clientY)
     const fromIdx = dragFromRef.current
     const moved   = touchMoved.current
 
     setDragFrom(null)
     setOverIdx(null)
-    dragFromRef.current = null
+    dragFromRef.current    = null
     touchStartCell.current = null
 
     if (fromIdx === null) return
@@ -296,61 +335,95 @@ export default function GamePage() {
   }
 
   /* ─── derived ───────────────────────────────────────────────── */
-  const profile = profileQuery.data ?? authUser
+  const profile            = profileQuery.data ?? authUser
   const selectedCategories = profile?.selectedCategories ?? []
-  const level = profile?.level ?? 1
-  const emptyCount        = cells.filter(c => c === null).length
-  const boardFull         = emptyCount === 0
-  const categoriesNotSet  = selectedCategories.length < level
+  const level              = profile?.level ?? 1
+  const emptyCount         = cells.filter(c => c === null).length
+  const boardFull          = emptyCount === 0
+  const categoriesNotSet   = selectedCategories.length < level
+
+  const daily    = dailyQuery.data   ?? []
+  const weekly   = weeklyQuery.data  ?? []
+  const referral = referralQuery.data ?? []
+
+  const taskGroups = useMemo(() => [
+    { key: 'DAILY'    as const, tasks: daily    },
+    { key: 'WEEKLY'   as const, tasks: weekly   },
+    { key: 'REFERRAL' as const, tasks: referral },
+  ], [daily, weekly, referral])
 
   return (
     <div className="flex flex-col gap-3 p-3 pb-4 touch-none select-none">
 
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 rounded-3xl p-5 text-white shadow-lg">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">МТБаллы</p>
-            <p className="text-3xl font-black tracking-tight">
-              💰 {mtBalls.toLocaleString('ru', { minimumFractionDigits: mtBalls % 1 !== 0 ? 1 : 0 })}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="bg-white/20 text-white text-xs font-black px-2.5 py-1 rounded-full">
+      {/* ── Header card ─────────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden text-white shadow-[0_8px_32px_rgba(13,27,115,0.28)]"
+        style={{ background: 'radial-gradient(120% 70% at 48% 48%, #0D1B73 17%, #1F36D3 72%)' }}
+      >
+        <div className="px-5 pt-5 pb-5">
+          {/* МТ-Баллы label + level badge */}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[13px] font-semibold text-white/70 tracking-wide">МТ-Баллы</p>
+            <span className="bg-white/20 text-white text-[11px] font-black px-3 py-1 rounded-full">
               Ур. {level}
             </span>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs">
-            <span className="text-blue-200">⚡ Энергия</span>
-            <span className="font-black text-white">{energy} / {maxEn}</span>
+          {/* Balance */}
+          <div className="flex items-end gap-2 mb-5">
+            <p className="text-[42px] font-bold leading-none tracking-[-0.05em]">
+              {mtBalls.toLocaleString('ru', { minimumFractionDigits: mtBalls % 1 !== 0 ? 1 : 0 })}
+            </p>
+            <img
+              src="/icons/profile/mtball.svg"
+              alt=""
+              className="mb-1.5 h-[22px] w-[28px] shrink-0"
+              aria-hidden="true"
+            />
           </div>
-          <ProgressBar
-            value={energy}
-            max={maxEn}
-            color={energy / maxEn > 0.3 ? 'bg-green-400' : 'bg-yellow-400'}
-            height="h-2.5"
-          />
+
+          {/* Energy */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[12px] font-medium text-white/70">
+                <EnergyIcon className="h-3 w-3 opacity-70" />
+                Энергия
+              </span>
+              <span className="text-[12px] font-black text-white">{energy} / {maxEn}</span>
+            </div>
+            <ProgressBar
+              value={energy}
+              max={maxEn}
+              color={energy / maxEn > 0.3 ? 'bg-green-400' : 'bg-yellow-400'}
+              height="h-2.5"
+            />
+          </div>
         </div>
       </div>
 
       {/* ── Category chips ──────────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap">
-        {selectedCategories.map(id => {
-          const cat = CATEGORY_CONFIG[id]
-          return (
-            <span
-              key={id}
-              className="text-xs font-bold px-3 py-1.5 rounded-full border"
-              style={{ color: cat.color, background: cat.color + '18', borderColor: cat.color + '35' }}
-            >
-              {cat.icon} {cat.name}
-            </span>
-          )
-        })}
-      </div>
+      {selectedCategories.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {selectedCategories.map(id => {
+            const cat = CATEGORY_CONFIG[id]
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border"
+                style={{ color: cat.color, background: cat.color + '18', borderColor: cat.color + '35' }}
+              >
+                <img
+                  src={`/icons/categories/${id}.svg`}
+                  alt=""
+                  className="h-3.5 w-3.5 object-contain shrink-0"
+                  aria-hidden="true"
+                />
+                {cat.name}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── Board hint ──────────────────────────────────────────── */}
       <p className="text-[11px] text-gray-400 text-center leading-tight">
@@ -390,7 +463,7 @@ export default function GamePage() {
                 isNew     ? 'animate-pop-in'     : '',
                 isDragged ? 'opacity-25 scale-90' : '',
                 mergeable ? 'ring-2 ring-green-400 bg-green-50 scale-105' : '',
-                isOver && !mergeable && item ? 'ring-2 ring-brand-400' : '',
+                isOver && !mergeable && item  ? 'ring-2 ring-brand-400' : '',
                 isOver && !mergeable && !item ? 'bg-brand-50 border-brand-300' : '',
                 frozen    ? 'opacity-70'        : '',
                 item?.rarity === 'LEGENDARY' && !frozen ? 'animate-glow-legendary' : '',
@@ -433,20 +506,115 @@ export default function GamePage() {
         ].join(' ')}
         disabled={createMutation.isPending}
       >
-        {categoriesNotSet
-          ? '🏷️ Выбери категории — перейти'
-          : boardFull
-          ? '🚫 Доска заполнена — освободи клетку'
-          : energy < 1
-          ? '⚡ Нет энергии — выполни задание'
-          : createMutation.isPending
-          ? 'Создаём предмет...'
-          : `Открыть клетку  −1 ⚡`}
+        {categoriesNotSet ? (
+          '🏷️ Выбери категории — перейти'
+        ) : boardFull ? (
+          '🚫 Доска заполнена — освободи клетку'
+        ) : energy < 1 ? (
+          <span className="flex items-center justify-center gap-1.5">
+            <EnergyIcon className="h-4 w-4" />
+            Нет энергии — выполни задание
+          </span>
+        ) : createMutation.isPending ? (
+          'Создаём предмет...'
+        ) : (
+          <span className="flex items-center justify-center gap-1.5">
+            Открыть клетку −1
+            <EnergyIcon className="h-4 w-4" />
+          </span>
+        )}
       </button>
 
       {(boardQuery.isLoading || profileQuery.isLoading || balanceQuery.isLoading) && (
-        <div className="text-center text-sm text-gray-400 py-3">Загружаем игру...</div>
+        <div className="text-center text-sm text-gray-400 py-2">Загружаем игру...</div>
       )}
+
+      {/* ── Tasks section ───────────────────────────────────────── */}
+      <div className="mt-1 space-y-4">
+        <h2 className="text-[18px] font-black text-gray-900">Задания</h2>
+
+        {taskGroups.map(({ key, tasks }) => {
+          const meta      = GROUP_META[key]
+          const claimable = tasks.filter(t => t.completed && !t.claimed).length
+
+          return (
+            <section key={key}>
+              <div className="flex items-center gap-2 mb-2.5">
+                <h3 className="font-black text-gray-900 text-[14px]">{meta.title}</h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.badgeColor}`}>
+                  {meta.badge}
+                </span>
+                {claimable > 0 && (
+                  <span className="ml-auto text-[10px] font-black text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                    {claimable} готово!
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {tasks.map(task => {
+                  const isClaimed = task.claimed
+                  const done      = task.completed
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`bg-white rounded-2xl p-4 flex gap-3 items-center shadow-sm transition-opacity ${isClaimed ? 'opacity-50' : ''}`}
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-2xl flex-shrink-0">
+                        {task.icon}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-900 leading-snug mb-2">
+                          {task.title}
+                        </p>
+                        <ProgressBar
+                          value={task.currentCount}
+                          max={task.targetCount}
+                          color={done ? 'bg-green-500' : 'bg-brand-500'}
+                          height="h-1.5"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {task.currentCount} / {task.targetCount}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => claimTask(task)}
+                        disabled={!done || isClaimed || claimMutation.isPending}
+                        className={[
+                          'flex-shrink-0 rounded-xl px-3 py-2.5 text-xs font-black transition-all',
+                          isClaimed
+                            ? 'bg-gray-100 text-gray-400'
+                            : done
+                            ? 'bg-green-500 text-white shadow-md shadow-green-200 active:scale-95'
+                            : 'bg-gray-100 text-gray-300 cursor-not-allowed',
+                        ].join(' ')}
+                      >
+                        {isClaimed ? '✓' : (
+                          <span className="flex items-center gap-1">
+                            +{task.energyReward}
+                            <EnergyIcon className="h-3 w-3" />
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {tasks.length === 0 && !dailyQuery.isLoading && (
+                  <div className="text-center text-sm text-gray-400 py-3">Нет заданий</div>
+                )}
+              </div>
+            </section>
+          )
+        })}
+
+        {(dailyQuery.isLoading || weeklyQuery.isLoading || referralQuery.isLoading) && (
+          <div className="text-center text-sm text-gray-400 py-4">Загружаем задания...</div>
+        )}
+      </div>
 
       {/* ── Toasts ──────────────────────────────────────────────── */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[200] pointer-events-none">
@@ -455,10 +623,10 @@ export default function GamePage() {
             key={t.id}
             className={[
               'text-white text-sm font-bold px-5 py-2.5 rounded-2xl shadow-xl animate-slide-up whitespace-nowrap',
-              t.type === 'success'   ? 'bg-green-700' :
+              t.type === 'success'   ? 'bg-green-700'  :
               t.type === 'merge'     ? 'bg-purple-700' :
               t.type === 'legendary' ? 'bg-orange-600' :
-              t.type === 'error'     ? 'bg-red-600' :
+              t.type === 'error'     ? 'bg-red-600'    :
                                        'bg-brand-700',
             ].join(' ')}
           >
@@ -481,7 +649,7 @@ export default function GamePage() {
   )
 }
 
-/* ─── Item modal component ───────────────────────────────────── */
+/* ─── Item modal ─────────────────────────────────────────────── */
 function ItemModal({
   item, onClose, onActivate, onTakeMtBalls, onDelete,
 }: {
@@ -491,12 +659,11 @@ function ItemModal({
   onTakeMtBalls: () => void
   onDelete: () => void
 }) {
-  const cfg    = RARITY_CONFIG[item.rarity]
-  const catCfg = CATEGORY_CONFIG[item.category]
+  const cfg      = RARITY_CONFIG[item.rarity]
+  const catCfg   = CATEGORY_CONFIG[item.category]
   const itemEmoji = getItemEmoji(item.iconPath)
-  const frozen = item.status === 'FROZEN'
-  const days   = item.expiresAt ? daysLeft(item.expiresAt) : null
-
+  const frozen   = item.status === 'FROZEN'
+  const days     = item.expiresAt ? daysLeft(item.expiresAt) : null
   const hasBonus = item.rarity !== 'DEFAULT'
 
   return (
@@ -557,7 +724,6 @@ function ItemModal({
         </div>
       ) : (
         <div className="w-full flex flex-col gap-2">
-          {/* LEGENDARY: two options */}
           {item.rarity === 'LEGENDARY' && (
             <>
               <button
@@ -577,7 +743,6 @@ function ItemModal({
             </>
           )}
 
-          {/* COMMON / RARE / EPIC: activate */}
           {hasBonus && item.rarity !== 'LEGENDARY' && (
             <button
               onClick={onActivate}
@@ -588,7 +753,6 @@ function ItemModal({
             </button>
           )}
 
-          {/* Keep for merge */}
           <button
             onClick={onClose}
             className="w-full py-3.5 rounded-2xl font-bold text-gray-600 bg-gray-100 text-sm active:scale-95 transition-transform"
@@ -596,7 +760,6 @@ function ItemModal({
             Оставить для слияния
           </button>
 
-          {/* Delete */}
           <button
             onClick={onDelete}
             className="w-full py-2.5 rounded-xl text-xs text-gray-400 font-semibold"

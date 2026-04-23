@@ -2,14 +2,52 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/store/auth'
 import { LEVEL_SPEND_THRESHOLDS } from '@/lib/constants'
-import { ProgressBar } from '@/components/ui/ProgressBar'
+import { useAuthStore } from '@/store/auth'
+
+function formatMtBalls(value: number) {
+  const hasFraction = Math.abs(value % 1) > 0
+  return value.toLocaleString('ru-RU', {
+    minimumFractionDigits: hasFraction ? 1 : 0,
+    maximumFractionDigits: hasFraction ? 1 : 0,
+  })
+}
+
+function formatShortDate(value: string) {
+  return new Date(value).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+  })
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function UserAvatar() {
+  return (
+    <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[20px] bg-[rgba(217,217,217,0.52)]">
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0))]" />
+      <svg viewBox="0 0 72 72" className="h-[60px] w-[60px]" aria-hidden="true">
+        <defs>
+          <linearGradient id="profile-avatar-fill" x1="36" y1="7" x2="36" y2="65" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#EEF5FF" />
+            <stop offset="1" stopColor="#55A7FF" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M36 12c7.18 0 13 5.82 13 13s-5.82 13-13 13-13-5.82-13-13 5.82-13 13-13Zm0 30c12.15 0 22 8.51 22 19 0 1.66-1.34 3-3 3H17c-1.66 0-3-1.34-3-3 0-10.49 9.85-19 22-19Z"
+          fill="url(#profile-avatar-fill)"
+        />
+      </svg>
+    </div>
+  )
+}
 
 export default function ProfilePage() {
   const qc = useQueryClient()
   const setUser = useAuthStore((s) => s.setUser)
-  const [toast,    setToast]    = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const profileQuery = useQuery({
     queryKey: ['profile'],
@@ -30,8 +68,9 @@ export default function ProfilePage() {
     queryFn: api.mtballs.balance,
   })
 
-  function showToast(msg: string) {
-    setToast(msg); setTimeout(() => setToast(null), 2500)
+  function showToast(message: string) {
+    setToast(message)
+    setTimeout(() => setToast(null), 2500)
   }
 
   const withdrawMutation = useMutation({
@@ -48,151 +87,187 @@ export default function ProfilePage() {
 
   const profile = profileQuery.data
   const mtBalls = mtballsQuery.data?.balance ?? profile?.mtBalls ?? 0
+  const txHistory = mtballsQuery.data?.transactions ?? []
   const level = profile?.level ?? 1
   const spend = profile?.monthlySpend ?? 0
-  const maxEn = profile?.maxEnergy ?? 7
-  const current = LEVEL_SPEND_THRESHOLDS[Math.max(0, level - 1)]
-  const next = LEVEL_SPEND_THRESHOLDS[level] ?? null
-  const progress = next ? spend - current.min : current.max
-  const target = next ? next.min - current.min : current.max - current.min
+  const currentThreshold = LEVEL_SPEND_THRESHOLDS[Math.max(0, level - 1)]
+  const nextThreshold = LEVEL_SPEND_THRESHOLDS[level] ?? null
+  const spendCurrent = levelQuery.data?.spendCurrent ?? spend
+  const spendRequired = levelQuery.data?.spendRequired ?? nextThreshold?.min ?? currentThreshold.max
+  const progressLimit = nextThreshold ? nextThreshold.min - currentThreshold.min : currentThreshold.max - currentThreshold.min
+  const progressValue = nextThreshold
+    ? clamp(spendCurrent - currentThreshold.min, 0, progressLimit)
+    : progressLimit
+  const progressPercent = progressLimit > 0 ? clamp((progressValue / progressLimit) * 100, 0, 100) : 100
+  const levelLabel = nextThreshold ? `${level} уровень` : 'Максимальный уровень'
 
   function handleWithdraw() {
     if (mtBalls <= 0 || withdrawMutation.isPending) return
     withdrawMutation.mutate()
   }
 
-  const txHistory = mtballsQuery.data?.transactions ?? []
-
   return (
-    <div className="flex flex-col gap-4 p-4">
-
-      {/* Profile card */}
-      <div className="bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 rounded-3xl p-5 text-white shadow-lg">
-        <div className="flex gap-4 items-center mb-5">
-          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl border-2 border-white/25">
-            👤
-          </div>
-          <div>
-            <p className="font-black text-lg leading-tight">{profile?.username ?? 'Профиль'}</p>
-            <p className="text-blue-200 text-xs mt-0.5">МТБанк</p>
-            <span className="inline-block mt-1.5 bg-white/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full">
-              Уровень {level}
-            </span>
-          </div>
-        </div>
-
-        {/* MT-balls */}
-        <div className="bg-white/15 rounded-2xl p-3 mb-3">
-          <p className="text-[10px] text-blue-200 font-bold uppercase tracking-wider mb-1">МТБаллы</p>
-          <p className="text-2xl font-black">
-            💰 {mtBalls.toLocaleString('ru', { minimumFractionDigits: mtBalls % 1 !== 0 ? 1 : 0 })}
-          </p>
-        </div>
-
-        {/* Level progress */}
-        {next ? (
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs text-blue-200">
-              <span>До уровня {level + 1}</span>
-              <span className="text-white font-bold">{levelQuery.data?.spendCurrent ?? spend} / {levelQuery.data?.spendRequired ?? next.min} BYN</span>
+    <div className="min-h-full bg-[#F5F5F5] text-[#111111]">
+      <section
+        className="relative overflow-hidden rounded-b-[40px] text-white shadow-[0_4px_14px_rgba(0,0,0,0.18)]"
+        style={{
+          background: 'radial-gradient(120% 70% at 48% 48%, #0D1B73 17%, #1F36D3 72%)',
+        }}
+      >
+        <div className="px-5 pb-5 pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <UserAvatar />
+              <div className="min-w-0">
+                <p className="max-w-[170px] break-words text-[22px] font-semibold leading-tight tracking-[-0.03em] text-white">
+                  {profile?.username ?? 'Danil Kolbasenko'}
+                </p>
+                <p className="mt-1 text-[15px] font-light leading-none text-white/80">
+                  МТБанк
+                </p>
+              </div>
             </div>
-            <ProgressBar value={progress} max={target} color="bg-white/90" height="h-2" />
-            <p className="text-[10px] text-blue-200">Макс. энергия: ⚡ {maxEn}</p>
+
+            <img
+              src="/icons/profile/info.svg"
+              alt=""
+              className="h-6 w-6 shrink-0 opacity-95"
+              aria-hidden="true"
+            />
           </div>
-        ) : (
-          <p className="text-xs text-blue-200 text-center">🏆 Максимальный уровень!</p>
+
+          <div className="mt-5">
+            <p className="text-[20px] font-semibold leading-none tracking-[-0.03em] text-white">
+              МТ-Баллы
+            </p>
+
+            <div className="mt-1.5 flex items-end gap-2">
+              <p className="text-[42px] font-bold leading-none tracking-[-0.05em] text-white">
+                {formatMtBalls(mtBalls)}
+              </p>
+              <img
+                src="/icons/profile/mtball.svg"
+                alt=""
+                className="mb-1 h-[22px] w-[28px] shrink-0"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-[18px] font-normal leading-none text-white">
+              {levelLabel}
+            </p>
+
+            <div className="mt-3 h-[18px] overflow-hidden rounded-full bg-[#F0F0F0] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
+              <div
+                className="h-full rounded-full bg-[#3772F4] transition-all duration-500"
+                style={{ width: `${Math.max(nextThreshold ? 12 : 100, progressPercent)}%` }}
+              />
+            </div>
+
+            <p className="mt-2 text-center text-[13px] font-normal leading-none text-white/80">
+              {nextThreshold ? `${spendCurrent} из ${spendRequired} BYN` : `${spendCurrent} BYN`}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-5 pb-8 pt-5">
+        <section className="rounded-[40px] bg-[#FBFBFB] px-6 py-5 shadow-[0_3px_12px_rgba(0,0,0,0.10)]">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[20px] font-semibold leading-none text-black">
+                Вывести МТ-Баллы
+              </p>
+              <p className="mt-3 text-[14px] font-light leading-none text-black">
+                На бонусный счёт пакета
+              </p>
+            </div>
+
+            <button
+              onClick={handleWithdraw}
+              disabled={mtBalls <= 0 || withdrawMutation.isPending}
+              className={[
+                'flex h-[49px] w-[150px] shrink-0 items-center justify-center rounded-[24px] text-[24px] font-medium leading-none transition-transform',
+                mtBalls > 0 && !withdrawMutation.isPending
+                  ? 'bg-[#1F36D3] text-white active:scale-[0.98]'
+                  : 'bg-[#D7DDF4] text-white/80',
+              ].join(' ')}
+            >
+              {withdrawMutation.isPending ? '...' : 'Вывести'}
+            </button>
+          </div>
+        </section>
+
+        <section className="rounded-[40px] bg-[#FBFBFB] px-6 py-6 shadow-[0_3px_12px_rgba(0,0,0,0.10)]">
+          <p className="text-[20px] font-semibold leading-none text-black">
+            Реферальный код
+          </p>
+
+          <div className="mt-6 rounded-[40px] bg-[#EEEEEE] px-6 py-5 text-center">
+            <p className="text-[32px] font-medium leading-none tracking-[-0.04em] text-black">
+              {profile?.referralCode ?? '7H4Td02L'}
+            </p>
+          </div>
+
+          <p className="mt-6 text-[14px] font-light leading-[1.15] text-black">
+            Поделись кодом - друг получит пакет, а ты энергию
+          </p>
+        </section>
+
+        <section className="rounded-[40px] bg-[#FBFBFB] px-6 py-6 shadow-[0_3px_12px_rgba(0,0,0,0.10)]">
+          <p className="text-[20px] font-semibold leading-none text-black">
+            История МТ-Баллов
+          </p>
+
+          {txHistory.length === 0 ? (
+            <p className="mt-4 text-[16px] font-normal leading-none text-black">
+              Пока нет операций по МТ-Баллам
+            </p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {txHistory.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between gap-4 rounded-[28px] bg-[#F1F1F1] px-5 py-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[15px] font-medium leading-none text-black">
+                      {tx.reason}
+                    </p>
+                    <p className="mt-2 text-[13px] font-light leading-none text-black/70">
+                      {formatShortDate(tx.createdAt)}
+                    </p>
+                  </div>
+
+                  <span
+                    className={[
+                      'shrink-0 text-[18px] font-semibold leading-none',
+                      tx.delta > 0 ? 'text-[#159947]' : 'text-[#D14343]',
+                    ].join(' ')}
+                  >
+                    {tx.delta > 0 ? '+' : ''}
+                    {tx.delta}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {(profileQuery.isLoading || levelQuery.isLoading || mtballsQuery.isLoading) && (
+          <div className="px-6 text-center text-[14px] font-light text-black/55">
+            Загружаем профиль...
+          </div>
         )}
       </div>
 
-      {/* Level info */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-900 mb-3">Уровни и категории</p>
-        <div className="flex flex-col gap-2">
-          {LEVEL_SPEND_THRESHOLDS.map(l => (
-            <div
-              key={l.level}
-              className={`flex items-center justify-between rounded-xl px-3 py-2 ${
-                l.level === level ? 'bg-brand-50 border border-brand-200' : 'bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-black w-16 ${l.level === level ? 'text-brand-600' : 'text-gray-500'}`}>
-                  Ур. {l.level}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {l.min}–{l.max === Infinity ? '∞' : l.max} BYN
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-gray-500">{l.level} {l.level === 1 ? 'категория' : 'категории'}</span>
-                {l.level === level && <span className="text-[10px] text-brand-500 font-black ml-1">← ты</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* MT-balls withdraw */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-black text-sm text-gray-900">Вывести МТБаллы</p>
-            <p className="text-xs text-gray-400 mt-0.5">На бонусный счёт пакета</p>
-          </div>
-          <button
-            onClick={handleWithdraw}
-            disabled={mtBalls <= 0 || withdrawMutation.isPending}
-            className="bg-brand-600 text-white text-xs font-black px-4 py-2.5 rounded-xl disabled:opacity-40 active:scale-95 transition-transform"
-          >
-            {withdrawMutation.isPending ? 'Выводим...' : 'Вывести'}
-          </button>
-        </div>
-      </div>
-
-      {/* Referral */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-900 mb-2">Реферальный код</p>
-        <div className="bg-gray-50 rounded-xl px-4 py-3 font-mono text-sm font-bold text-gray-800 text-center tracking-[0.2em] border border-gray-200">
-          {profile?.referralCode ?? '--------'}
-        </div>
-        <p className="text-xs text-gray-400 mt-2 text-center">
-          Поделись кодом — друг подключит пакет, ты получишь ⚡
-        </p>
-      </div>
-
-      {/* MT-balls history */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-900 mb-3">История МТБаллов</p>
-        <div className="flex flex-col gap-2">
-          {txHistory.length === 0 && (
-            <p className="text-xs text-gray-400">Пока нет операций по МТБаллам</p>
-          )}
-          {txHistory.map(tx => (
-            <div key={tx.id} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
-              <div>
-                <p className="text-xs font-semibold text-gray-700">{tx.reason}</p>
-                <p className="text-[10px] text-gray-400">{new Date(tx.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}</p>
-              </div>
-              <span className={`text-sm font-black ${tx.delta > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                {tx.delta > 0 ? '+' : ''}{tx.delta}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {(profileQuery.isLoading || levelQuery.isLoading || mtballsQuery.isLoading) && (
-        <div className="text-center text-sm text-gray-400 py-4">Загружаем профиль...</div>
-      )}
-
-      {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-700 text-white text-sm font-bold px-5 py-2.5 rounded-2xl shadow-xl animate-slide-up z-[200] whitespace-nowrap">
+        <div className="fixed left-1/2 top-4 z-[200] -translate-x-1/2 whitespace-nowrap rounded-2xl bg-[#0D7A43] px-5 py-2.5 text-sm font-bold text-white shadow-xl animate-slide-up">
           {toast}
         </div>
       )}
-
-      <div className="h-4" />
     </div>
   )
 }

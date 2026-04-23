@@ -7,20 +7,47 @@ import { ToastContainer } from '@/components/ui/Toast'
 import { api } from '@/lib/api'
 
 const TABS = [
-  { path: '/game',       label: 'Игра',       icon: '🎮' },
-  { path: '/tasks',      label: 'Задания',     icon: '📋' },
-  { path: '/categories', label: 'Категории',   icon: '🏷️' },
-  { path: '/profile',    label: 'Профиль',     icon: '👤' },
-]
+  { path: '/game',       label: 'Игра',       icon: 'game'     },
+  { path: '/categories', label: 'Категории',   icon: 'category' },
+  { path: '/profile',    label: 'Профиль',     icon: 'profile'  },
+] as const
+
+function TabIcon({
+  icon,
+  active,
+}: {
+  icon: (typeof TABS)[number]['icon']
+  active: boolean
+}) {
+  if (icon === 'profile') {
+    return (
+      <img
+        src="/icons/nav/profile.svg"
+        alt=""
+        aria-hidden="true"
+        className={active ? 'h-7 w-6' : 'h-6 w-5 opacity-70'}
+      />
+    )
+  }
+
+  return (
+    <img
+      src={`/icons/nav/${icon}.svg`}
+      alt=""
+      aria-hidden="true"
+      className={active ? 'h-6 w-7' : 'h-5 w-6 opacity-70'}
+    />
+  )
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const router   = useRouter()
-  const queryClient = useQueryClient()
-  const token    = useAuthStore((s) => s.token)
-  const setAuth  = useAuthStore((s) => s.setAuth)
-  const setUser  = useAuthStore((s) => s.setUser)
-  const logout   = useAuthStore((s) => s.logout)
+  const pathname      = usePathname()
+  const router        = useRouter()
+  const queryClient   = useQueryClient()
+  const token         = useAuthStore((s) => s.token)
+  const setAuth       = useAuthStore((s) => s.setAuth)
+  const setUser       = useAuthStore((s) => s.setUser)
+  const logout        = useAuthStore((s) => s.logout)
   const [isBootstrapping, setIsBootstrapping] = useState(!token)
 
   useEffect(() => {
@@ -66,10 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     void bootstrap()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [token, setAuth, setUser, logout, queryClient])
 
   useEffect(() => {
@@ -79,7 +103,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!token) {
     if (isBootstrapping) {
       return (
-        <div className="min-h-screen bg-[#F2F4F8] flex items-center justify-center">
+        <div className="flex min-h-screen items-center justify-center bg-[#F2F4F8]">
           <div className="text-center">
             <p className="text-5xl mb-4">🎮</p>
             <p className="text-sm font-bold text-brand-700">Подключаем игру...</p>
@@ -89,13 +113,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-      <div className="min-h-screen bg-[#F2F4F8] flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-6 shadow-lg text-center max-w-sm w-full">
-          <p className="text-lg font-black text-gray-900 mb-2">Не удалось открыть приложение</p>
-          <p className="text-sm text-gray-500 mb-4">Проверь, что backend доступен на `localhost:8080`.</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F4F8] p-6">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-lg">
+          <p className="mb-2 text-lg font-black text-gray-900">Не удалось открыть приложение</p>
+          <p className="mb-4 text-sm text-gray-500">Проверь, что backend доступен на `localhost:8080`.</p>
           <button
             onClick={() => window.location.reload()}
-            className="w-full bg-gradient-to-r from-brand-700 to-brand-500 text-white font-bold py-3 rounded-xl"
+            className="w-full rounded-xl bg-gradient-to-r from-brand-700 to-brand-500 py-3 font-bold text-white"
           >
             Повторить
           </button>
@@ -105,31 +129,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F2F4F8]">
-      <div className="flex-1 overflow-y-auto pb-20 max-w-[430px] w-full mx-auto">
+    <div className="flex min-h-screen flex-col bg-[#F2F4F8]">
+      <div className="mx-auto flex w-full max-w-[430px] flex-1 overflow-y-auto px-0 pb-[112px]">
         {children}
       </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50">
-        <div className="max-w-[430px] mx-auto bg-white border-t border-gray-200 flex pb-safe">
-          {TABS.map(tab => {
-            const active = pathname === tab.path
-            return (
-              <button
-                key={tab.path}
-                onClick={() => router.push(tab.path)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                  active ? 'text-brand-600' : 'text-gray-400'
-                }`}
-              >
-                <span className="text-2xl leading-none">{tab.icon}</span>
-                <span className={`text-[10px] leading-tight ${active ? 'font-bold' : 'font-normal'}`}>
-                  {tab.label}
-                </span>
-                {active && <div className="w-1 h-1 rounded-full bg-brand-600 mt-0.5" />}
-              </button>
-            )
-          })}
+        <div className="mx-auto max-w-[430px] px-3 pb-3 pb-safe">
+          <div className="overflow-hidden rounded-[28px] border border-[#E2E8FA] bg-white p-2 shadow-[0_18px_38px_rgba(26,44,108,0.16)]">
+            <div className="grid grid-cols-3 gap-1">
+              {TABS.map((tab) => {
+                const active = pathname === tab.path
+                return (
+                  <button
+                    key={tab.path}
+                    onClick={() => router.push(tab.path)}
+                    aria-label={tab.label}
+                    title={tab.label}
+                    className={[
+                      'flex h-[62px] items-center justify-center rounded-[20px] transition-all',
+                      active
+                        ? 'bg-[#1737FF] shadow-[0_12px_24px_rgba(23,55,255,0.22)]'
+                        : 'bg-transparent',
+                    ].join(' ')}
+                  >
+                    <span className="sr-only">{tab.label}</span>
+                    <TabIcon icon={tab.icon} active={active} />
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </nav>
 
